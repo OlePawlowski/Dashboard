@@ -5,24 +5,32 @@ from googleapiclient.discovery import build
 import os
 import datetime
 from dotenv import load_dotenv
+import json
 
+# 🔃 .env laden (lokal)
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback")
-
 CORS(app)
 
+# 👥 Benutzer
 USERS = {
-    os.getenv("USER_1_NAME", "Ole"): os.getenv("USER_1_PASS", "Helpcare2025!"),
-    os.getenv("USER_2_NAME", "partner"): os.getenv("USER_2_PASS", "Helpcare2025!")
+    os.getenv("USER_1_NAME"): os.getenv("USER_1_PASS"),
+    os.getenv("USER_2_NAME"): os.getenv("USER_2_PASS")
 }
 
-TOKEN_PATH = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
+# 📬 E-Mail Auth über Environment
+def load_credentials_from_env():
+    token_str = os.getenv("TOKEN_JSON")
+    if not token_str:
+        raise Exception("TOKEN_JSON nicht gesetzt")
+    token_data = json.loads(token_str)
+    return Credentials.from_authorized_user_info(token_data, SCOPES)
 
-# 🔐 LOGIN-SEITE
+# 📥 Anfrage empfangen
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
     if "user" not in session:
@@ -32,22 +40,19 @@ def neue_anfrage():
     if not data:
         return jsonify({"error": "Ungültige Daten"}), 400
 
-    # Temporär in globaler Liste speichern (oder später DB etc.)
     if "anfragen" not in session:
         session["anfragen"] = []
-    anfragen = session["anfragen"]
-    anfragen.insert(0, data)  # Neueste oben
-    session["anfragen"] = anfragen
-
+    session["anfragen"].insert(0, data)
     return jsonify({"success": True})
 
+# 📤 Anfragen ausgeben
 @app.route("/api/get-anfragen")
 def get_anfragen():
     if "user" not in session:
         return jsonify([])
     return jsonify(session.get("anfragen", []))
 
-
+# 🔐 Login
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -56,34 +61,34 @@ def login():
         if USERS.get(username) == password:
             session["user"] = username
             return redirect("/dashboard")
-        else:
-            return "❌ Falscher Login", 401
-    return render_template("login.html")  # Richtig gerendertes HTML
+        return "❌ Falscher Login", 401
+    return render_template("login.html")
 
-# 📊 DASHBOARD
+# 📊 Dashboard
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
         return redirect("/")
     return render_template("index.html")
 
-# 📬 E-MAIL API
+# 📧 Gmail API
 @app.route("/api/emails")
 def get_emails():
     if "user" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 401
 
-    creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
-    service = build('gmail', 'v1', credentials=creds)
-
-    results = service.users().messages().list(userId='me', maxResults=5).execute()
-    messages = results.get('messages', [])
+    try:
+        creds = load_credentials_from_env()
+        service = build('gmail', 'v1', credentials=creds)
+        results = service.users().messages().list(userId='me', maxResults=5).execute()
+        messages = results.get('messages', [])
+    except Exception as e:
+        return jsonify({"error": f"Fehler bei Gmail API: {str(e)}"}), 500
 
     email_list = []
     for msg in messages:
         msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
         headers = msg_data['payload']['headers']
-
         email_info = {
             "from": next((h['value'] for h in headers if h['name'] == 'From'), 'Unbekannt'),
             "subject": next((h['value'] for h in headers if h['name'] == 'Subject'), '(Kein Betreff)'),
@@ -94,19 +99,14 @@ def get_emails():
 
     return jsonify(email_list)
 
-# 🔓 LOGOUT
+# 🔓 Logout
 @app.route("/logout")
 def logout():
     session.pop("user", None)
     return redirect("/")
 
-# ▶️ APP STARTEN + automatisch Browser öffnen
+# ▶️ Nur lokal öffnen
 if __name__ == "__main__":
-    import webbrowser
-    import threading
-
-    def open_browser():
-        webbrowser.open_new("http://127.0.0.1:5000")
-
-    threading.Timer(1.5, open_browser).start()
+    import webbrowser, threading
+    threading.Timer(1.5, lambda: webbrowser.open_new("http://127.0.0.1:5000")).start()
     app.run(debug=True)
