@@ -38,13 +38,21 @@ def externe_anfrage():
     if not data:
         return jsonify({"error": "Ungültige Daten"}), 400
 
-    if "anfragen" not in session:
-        session["anfragen"] = []
-    session["anfragen"].insert(0, data)
+    # Datei lesen
+    try:
+        with open("anfragen.json", "r") as f:
+            anfragen = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        anfragen = []
+
+    # Neue Anfrage einfügen
+    anfragen.insert(0, data)
+
+    # Datei speichern
+    with open("anfragen.json", "w") as f:
+        json.dump(anfragen, f)
 
     return jsonify({"success": True})
-
-
 
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
