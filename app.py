@@ -31,26 +31,41 @@ def load_credentials_from_env():
     return Credentials.from_authorized_user_info(token_data, SCOPES)
 
 # 📥 Anfrage empfangen
+
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
-    if "user" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 401
+    # Entferne diese Zeile:
+    # if "user" not in session:
+    #     return jsonify({"error": "Nicht eingeloggt"}), 401
 
     data = request.get_json()
     if not data:
         return jsonify({"error": "Ungültige Daten"}), 400
 
-    if "anfragen" not in session:
-        session["anfragen"] = []
-    session["anfragen"].insert(0, data)
+    # Globale Speicherung in Datei oder Liste
+    try:
+        with open("anfragen.json", "r") as f:
+            anfragen = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        anfragen = []
+
+    anfragen.insert(0, data)
+
+    with open("anfragen.json", "w") as f:
+        json.dump(anfragen, f)
+
     return jsonify({"success": True})
+
 
 # 📤 Anfragen ausgeben
 @app.route("/api/get-anfragen")
 def get_anfragen():
-    if "user" not in session:
+    try:
+        with open("anfragen.json", "r") as f:
+            return jsonify(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
         return jsonify([])
-    return jsonify(session.get("anfragen", []))
+
 
 # 🔐 Login
 @app.route("/", methods=["GET", "POST"])
