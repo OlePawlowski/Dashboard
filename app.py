@@ -32,6 +32,20 @@ def load_credentials_from_env():
 
 # 📥 Anfrage empfangen
 
+@app.route("/api/externe-anfrage", methods=["POST"])
+def externe_anfrage():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Ungültige Daten"}), 400
+
+    if "anfragen" not in session:
+        session["anfragen"] = []
+    session["anfragen"].insert(0, data)
+
+    return jsonify({"success": True})
+
+
+
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
     # Entferne diese Zeile:
