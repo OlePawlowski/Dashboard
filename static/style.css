@@ -1,11 +1,13 @@
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
 
+
 body {
+  background: linear-gradient(135deg, #e0e0e0, #f8f8f8);
+  color: #2c2c2c;
+  font-family: "Quicksand", sans-serif;
   margin: 0;
-  font-family: "Quicksand";
-  background: snow;
-  color: #5a4b4a;
 }
+
 
 .bcg  {
   position: fixed;
@@ -22,18 +24,35 @@ body {
   overflow: hidden;
 }
 
+/* Sidebar */
+.sidebar {
+  width: 80px;
+  color: #f78060;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.card {
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+}
+
 .card, .sidebar {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08); /* leicht transparent */
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+
   box-shadow:
-    inset 2px 2px 4px rgba(255, 255, 255, 0.1),
-    inset -2px -2px 4px rgba(255, 255, 255, 0.1),
-    0 8px 24px rgba(0, 0, 0, 0.2),
-    inset 0 8px 8px rgba(255, 255, 255, 0.15);
+    0 8px 32px rgba(0, 0, 0, 0.2), /* äußere Tiefe */
+    inset 0 1px 0 rgba(255, 255, 255, 0.1), /* inneres Licht oben */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05); /* innerer Schatten unten */
 }
+
 
 .profile img {
   width: 40px;
@@ -76,9 +95,12 @@ body {
   height: calc(100vh - 4rem);
 }
 
+
 .card h3 {
   margin: 0 0 1rem;
 }
+
+
 
 /* GMAIL Karte – extra Style */
 .card.gmail {
