@@ -51,20 +51,11 @@
       </div>
       <div class="cards">
       <div class="card" id="anfragen">
-      <h3>💬 Anfragen</h3>
-        <table id="anfrageList">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Telefon</th>
-              <th>Preis (€)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Daten werden dynamisch geladen -->
-          </tbody>
-        </table>
-    </div>
+        <h3>Anfragen</h3>
+        <div id="anfrageList" class="anfrage-grid">
+        </div>
+      </div>
+
 
         <!-- Card 2 -->
         <div class="card">
@@ -115,17 +106,21 @@
      async function loadAnfragen() {
     const res = await fetch("/api/get-anfragen");
     const data = await res.json();
-    const list = document.querySelector("#anfrageList tbody");
+    const list = document.getElementById("anfrageList");
     list.innerHTML = "";
 
     data.forEach(anfrage => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td><a href="https://app.maidplus.de/client" target="_blank" style="text-decoration: none; color: inherit;">${anfrage.name}</a></td>
-        <td>${anfrage.tel}</td>
-        <td>${anfrage.preis?.toFixed(2)} €</td>
+      const card = document.createElement("div");
+      card.className = "anfrage-card";
+      card.onclick = () => {
+        window.open("https://app.maidplus.de/client", "_blank");
+      };
+      card.innerHTML = `
+        <h4>${anfrage.name}</h4>
+        <p>📞 ${anfrage.tel}</p>
+        <p>💶 ${anfrage.preis?.toFixed(2)} €</p>
       `;
-      list.appendChild(row);
+      list.appendChild(card);
     });
   }
 

@@ -2,7 +2,6 @@
 
 
 body {
-  background: linear-gradient(135deg, #e0e0e0, #f8f8f8);
   color: #2c2c2c;
   font-family: "Quicksand", sans-serif;
   margin: 0;
@@ -24,7 +23,6 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar */
 .sidebar {
   width: 80px;
   color: #f78060;
@@ -41,16 +39,12 @@ body {
 }
 
 .card, .sidebar {
-  background: rgba(255, 255, 255, 0.08); /* leicht transparent */
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.2), /* äußere Tiefe */
-    inset 0 1px 0 rgba(255, 255, 255, 0.1), /* inneres Licht oben */
-    inset 0 -1px 0 rgba(0, 0, 0, 0.05); /* innerer Schatten unten */
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 
@@ -143,6 +137,38 @@ body {
   color: #5a4b4a;
 }
 
+.anfrage-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 
-#ffffff99
-backdrop-filter: blur(5px);
+.anfrage-card {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 1rem;
+  border-radius: 12px;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.anfrage-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.anfrage-card h4 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.anfrage-card p {
+  margin: 0.2rem 0;
+  font-size: 0.95rem;
+}
+
+
