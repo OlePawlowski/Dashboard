@@ -23,6 +23,11 @@ body {
   z-index: -1;
 }
 
+.logo {
+  display: flex;
+  justify-content: center;
+}
+
 /* Layout */
 .dashboard-layout {
   display: flex;
@@ -38,7 +43,6 @@ body {
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
 }
 
 .sidebar img {
