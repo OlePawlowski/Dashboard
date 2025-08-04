@@ -35,52 +35,14 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar mit Glassmorphism */
 .sidebar {
   width: 240px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
   padding: 2rem 1rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 20px 10px rgba(255, 255, 255, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.sidebar::before,
-.kpi-card::before,
-.kpi-score::before,
-.top-performance::before,
-.upcoming-meetings::before,
-.working-format::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-}
-
-.sidebar::after,
-.kpi-card::after,
-.kpi-score::after,
-.top-performance::after,
-.upcoming-meetings::after,
-.working-format::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.8), transparent, rgba(255,255,255,0.3));
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar img {
@@ -126,7 +88,6 @@ body {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-/* Main Content */
 .main-content {
   flex: 1;
   padding: 2rem;
@@ -141,31 +102,21 @@ body {
   margin-bottom: 2rem;
 }
 
-/* KPI Cards mit Glassmorphism */
+/* KPI Cards */
 .kpis {
   display: flex;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.kpi-card,
-.kpi-score,
-.top-performance,
-.upcoming-meetings,
-.working-format {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 20px 10px rgba(255, 255, 255, 1);
-  position: relative;
-  overflow: hidden;
+.kpi-card {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.5);
   padding: 1.5rem;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  text-align: center;
 }
 
 .kpi-card h4 {
@@ -180,7 +131,19 @@ body {
 
 /* Einsätze / Upcoming */
 .upcoming-meetings {
+  background: #2b2b2b;
   color: white;
+  padding: 1.5rem;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.meeting-card {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  margin-top: 1rem;
+  border-radius: 12px;
 }
 
 /* Mittelblock */
@@ -189,6 +152,15 @@ body {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.kpi-score,
+.top-performance {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1.5rem;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .kpi-score .score {
@@ -208,14 +180,6 @@ body {
 
 .top-performance li {
   margin-bottom: 0.5rem;
-}
-
-/* Meeting Cards */
-.meeting-card {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 12px;
 }
 
 /* Notizen Editor */
@@ -247,7 +211,15 @@ body {
   background-color: #e46a4e;
 }
 
-/* Working Format Liste */
+/* Gmail */
+.working-format {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1.5rem;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
 .working-format ul {
   list-style: none;
   margin-top: 1rem;
