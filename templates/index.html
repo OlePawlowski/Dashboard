@@ -2,12 +2,15 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a2e0f2ac1f.js" crossorigin="anonymous"></script>
 </head>
 <body>
+
+  <!-- SVG Hintergrund -->
   <svg class="bcg" preserveAspectRatio="xMidYMid slice" viewBox="10 10 80 80">
     <defs>
       <style>
@@ -26,107 +29,133 @@
     <path fill="#f780600f" class="out-bottom" d="M105.9,48.6c-12.4-8.2-29.3-4.8-39.4,0.8-23.4,12.8-37.7,51.9-19.1,74.1s63.9,15.3,76-5.6c7.6-13.3,1.8-31.1-2.3-43.8C117.6,63.3,114.7,54.3,105.9,48.6Z"/>
     <path fill="#f780600f" class="in-bottom" d="M102,67.1c-9.6-6.1-22-3.1-29.5,2-15.4,10.7-19.6,37.5-7.6,47.8s35.9,3.9,44.5-12.5C115.5,92.6,113.9,74.6,102,67.1Z"/>
   </svg>
-  <div class="container">
+
+  <div class="dashboard-layout">
     <!-- Sidebar -->
-    <div class="sidebar">
-      <div class="profile">
-        <img src="https://helpcare.de/wp-content/uploads/2025/07/cropped-fav.png" alt="Profilbild" />
-      </div>
-      <nav>
-        <ul>
-          <li><a href="#"><i class="fas fa-bars"></i></a></li>
-          <li><a href="#"><i class="fas fa-question"></i></a></li>
-        </ul>
-      </nav>
+    <aside class="sidebar">
+      <div class="logo">
+        <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo">
     </div>
 
-    <!-- Main content -->
-    <div class="dashboard">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>Hi Ole ✌️</h1>
+      <div class="profile">
+        <span>Ole P.</span>
+        <img src="https://helpcare.de/wp-content/uploads/2025/07/cropped-fav.png" alt="Profil" />
+      </div>
+      <ul class="nav">
+        <li class="active"><i class="fas fa-home"></i> Dashboard</li>
+        <li><i class="fas fa-calendar-alt"></i> Kalendar</li>
+        <li><i class="fas fa-life-ring"></i> Hilfe</li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="topbar">
+        <h1>Dashboard</h1>
         <div style="text-align: right;">
           <h1>{{ aktuelles_datum }}</h1>
           <p id="liveClock" style="font-size: 1rem; color: #666;"></p>
         </div>
       </div>
-      <div class="cards">
-      <div class="card" id="anfragen">
-        <h3><i class="fa-solid fa-file-contract"></i> Anfragen</h3>
-        <div id="anfrageList" class="anfrage-grid">
+
+      <!-- KPI Cards -->
+      <section class="kpis">
+        <div class="kpi-card"><h4>Anfragen</h4><p>23</p></div>
+        <div class="kpi-card"><h4>Einsätze</h4><p>70</p></div>
+        <div class="kpi-card"><h4>Betreuungskräfte</h4><p>500</p></div>
+      </section>
+
+      <!-- Dynamisch geladene Einsätze -->
+      <div class="upcoming-meetings">
+        <h3>Einsätze</h3>
+        <div id="einsatzList">
+          <p>Lade Einsätze...</p>
         </div>
       </div>
 
-
-        <!-- Card 2 -->
-        <div class="card">
-          <h3><i class="fas fa-users"></i> Nachrichten</h3>
-          <p><strong></strong> </p>
+      <!-- Middle Content -->
+      <section class="middle-row">
+        <div class="kpi-score">
+          <h3>Nachrichten</h3>
+          <p class="score">63.89%</p>
+          <p class="change">-2.34%</p>
         </div>
 
-        <!-- Card 3 -->
-        <div class="card">
-          <h3><i class="fas fa-calendar-alt"></i> Notizen</h3>
-          <p><strong>4</strong> Meetings, <strong>2</strong> Deadlines</p>
+        <div class="top-performance">
+            <h3>Notizen</h3>
+            <textarea id="notizenEditor" placeholder="Schreibe dir eine Notiz..."></textarea>
+            <button id="saveNote">Speichern</button>
         </div>
 
-        <!-- Gmail Card (Card 4) -->
-        <div class="card gmail">
-          <h3><i class="fas fa-envelope"></i> Gmail</h3>
-          <ul id="email-list">
-            <li>Lade E-Mails...</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+      </section>
+
+      <!-- Gmail Bereich -->
+      <section class="working-format">
+        <h3>Gmail</h3>
+        <ul id="email-list">
+          <li>Lade E-Mails...</li>
+        </ul>
+      </section>
+    </main>
   </div>
+  
+  <!-- Notepad -->
+    <script>
+        const editor = document.getElementById("notizenEditor");
+        const button = document.getElementById("saveNote");
 
+        // Notiz laden
+        editor.value = localStorage.getItem("notiz") || "";
+
+        button.onclick = () => {
+            localStorage.setItem("notiz", editor.value);
+            alert("✅ Notiz gespeichert!");
+        };
+    </script>
+
+  <!-- Uhrzeit -->
   <script>
     function updateClock() {
-    const now = new Date();
-    const options = {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    };
-
-    // Deutsche Formatierung
-    const formatted = now.toLocaleString('de-DE', options).replace(',', ' –');
-    document.getElementById("liveClock").textContent = formatted;
-  }
-
-  // Initialer Aufruf + alle 1 Sekunde
-  updateClock();
-  setInterval(updateClock, 1000);
-
-
-     async function loadAnfragen() {
-    const res = await fetch("/api/get-anfragen");
-    const data = await res.json();
-    const list = document.getElementById("anfrageList");
-    list.innerHTML = "";
-
-    data.forEach(anfrage => {
-      const card = document.createElement("div");
-      card.className = "anfrage-card";
-      card.onclick = () => {
-        window.open("https://app.maidplus.de/client", "_blank");
+      const now = new Date();
+      const options = {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
       };
-      card.innerHTML = `
-        <h4>${anfrage.name}</h4>
-        <p>📞 ${anfrage.tel}</p>
-        <p>💶 ${anfrage.preis?.toFixed(2)} €</p>
-      `;
-      list.appendChild(card);
-    });
-  }
+      const formatted = now.toLocaleString('de-DE', options).replace(',', ' –');
+      document.getElementById("liveClock").textContent = formatted;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
 
-  loadAnfragen();
+  <!-- Einsätze laden -->
+  <script>
+    async function loadEinsaetze() {
+      const res = await fetch("/api/get-anfragen");
+      const data = await res.json();
+      const list = document.getElementById("einsatzList");
+      list.innerHTML = "";
 
+      data.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "meeting-card";
+        card.innerHTML = `
+          <strong>${item.name}</strong><br>
+          <small>📞 ${item.tel}</small>
+        `;
+        list.appendChild(card);
+      });
+    }
+    loadEinsaetze();
+  </script>
 
+  <!-- Gmail laden -->
+  <script>
     fetch("/api/emails")
       .then(res => res.json())
       .then(data => {
@@ -137,7 +166,7 @@
           const link = document.createElement("a");
           link.href = "https://mail.google.com/mail/u/0/#inbox";
           link.target = "_blank";
-          link.innerHTML = `<strong>${mail.from}</strong>${mail.subject}<br><small>${mail.time}</small>`;
+          link.innerHTML = `<strong>${mail.from}</strong><br>${mail.subject}<br><small>${mail.time}</small>`;
           li.appendChild(link);
           list.appendChild(li);
         });
