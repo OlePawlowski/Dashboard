@@ -1,16 +1,10 @@
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
-
-* {
-  box-sizing: border-box;
-}
 
 body {
   margin: 0;
-  font-family: "Quicksand", sans-serif;
-  background: linear-gradient(135deg, #fdfcfc, #f1f1f1);
-  color: #333;
-  backdrop-filter: blur(10px);
+  font-family: "Quicksand";
+  background: snow;
+  color: #5a4b4a;
 }
 
 .bcg {
@@ -19,26 +13,34 @@ body {
   left: 0;
   width: 100%;
   height: 100vh;
-  z-index: -1;
+  z-index: -99999;
 }
 
-/* Sidebar */
+.container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar im Apple Liquid Glass Style */
 .sidebar {
   width: 80px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-right: 1px solid rgba(255, 255, 255, 0.3);
+  background: #ffffff99;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  box-shadow:
+    inset 2px 2px 1px -2px #fffffb3,
+    inset -2px -2px 1px -2px #ffffffb3,
+    0 8px 24px 0 #00000066,
+    inset 0 8px 8px 0 #fffff99;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 1rem 0;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
 }
 
 .profile img {
   width: 40px;
-  border-radius: 50%;
   margin-bottom: 2rem;
 }
 
@@ -53,14 +55,14 @@ body {
 }
 
 .sidebar nav ul li a {
-  color: #333;
+  color: #f78060;
   font-size: 1.3rem;
-  opacity: 0.8;
-  transition: opacity 0.3s ease;
 }
 
-.sidebar nav ul li a:hover {
-  opacity: 1;
+.hamburger {
+  margin-top: auto;
+  font-size: 1.5rem;
+  cursor: pointer;
 }
 
 /* Main content */
@@ -68,100 +70,73 @@ body {
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
-  backdrop-filter: none;
 }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: minmax(300px, auto);
   gap: 1.5rem;
+  height: calc(100vh - 4rem);
 }
 
-/* Karten */
+/* Karten im Apple Liquid Glass Style */
 .card {
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 20px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #ffffff99;
+  border-radius: 16px;
+  padding: 1.2rem;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  box-shadow:
+    inset 2px 2px 1px -2px #fffffb3,
+    inset -2px -2px 1px -2px #ffffffb3,
+    0 8px 24px 0 #00000066,
+    inset 0 8px 8px 0 #fffff99;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-3px);
 }
 
 .card h3 {
   margin: 0 0 1rem;
-  font-weight: 600;
-  color: #222;
 }
 
-/* Tabelle */
-#anfrageList {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-}
-
-#anfrageList th, #anfrageList td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-  color: #333;
-}
-
-#anfrageList thead {
-  background: rgba(255, 255, 255, 0.2);
-  font-weight: 600;
-}
-
-#anfrageList tr:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* Gmail Card */
+/* GMAIL Karte – extra Style */
 .card.gmail {
   grid-row: span 2;
   overflow-y: auto;
 }
 
+.card.gmail h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .card.gmail ul {
-  padding: 0;
+  padding-left: 0;
   list-style: none;
   margin: 0;
 }
 
 .card.gmail li {
   margin-bottom: 0.8rem;
-  padding: 0.6rem;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.2);
-  transition: background 0.3s ease;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background 0.2s ease;
 }
 
 .card.gmail li:hover {
-  background: rgba(255,255,255,0.3);
+  background: #f0f0f0;
 }
 
 .card.gmail a {
   text-decoration: none;
-  color: #333;
+  color: #5a4b4a;
   display: block;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .card.gmail strong {
   display: block;
-  color: #000;
-  font-weight: 600;
-}
-
-#liveClock {
-  font-size: 1rem;
-  color: #444;
+  color: #5a4b4a;
 }
