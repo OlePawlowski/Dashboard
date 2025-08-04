@@ -131,25 +131,34 @@
   </script>
 
   <!-- Einsätze laden -->
-  <script>
-    async function loadEinsaetze() {
-      const res = await fetch("/api/get-anfragen");
-      const data = await res.json();
-      const list = document.getElementById("einsatzList");
-      list.innerHTML = "";
+ <script>
+  async function loadEinsaetze() {
+    const res = await fetch("/api/get-anfragen");
+    const data = await res.json();
+    const list = document.getElementById("einsatzList");
+    list.innerHTML = "";
 
-      data.forEach(item => {
-        const card = document.createElement("div");
-        card.className = "meeting-card";
-        card.innerHTML = `
-          <strong>${item.name}</strong><br>
-          <small>📞 ${item.tel}</small>
-        `;
-        list.appendChild(card);
+    data.forEach(item => {
+      const card = document.createElement("div");
+      card.className = "meeting-card";
+      card.innerHTML = `
+        <strong>${item.name}</strong><br>
+        <small>📞 ${item.tel}</small>
+      `;
+
+      // 👉 Click-Handler hinzufügen:
+      card.addEventListener("click", () => {
+        window.location.href = "https://app.maidplus.de/client"; // Im selben Tab
+        // window.open("https://app.maidplus.de/client", "_blank"); // Alternativ: in neuem Tab
       });
-    }
-    loadEinsaetze();
-  </script>
+
+      list.appendChild(card);
+    });
+  }
+
+  loadEinsaetze();
+</script>
+
 
   <!-- Gmail laden -->
   <script>
