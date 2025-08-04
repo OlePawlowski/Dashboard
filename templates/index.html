@@ -49,6 +49,7 @@
           <p id="liveClock" style="font-size: 1rem; color: #666;"></p>
         </div>
       </div>
+      <div class="cards">
       <div class="card" id="anfragen">
       <h3>💬 Anfragen</h3>
         <table id="anfrageList">
@@ -110,7 +111,7 @@
   updateClock();
   setInterval(updateClock, 1000);
 
-  
+
      async function loadAnfragen() {
     const res = await fetch("/api/get-anfragen");
     const data = await res.json();

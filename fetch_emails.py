@@ -14,7 +14,7 @@ def get_emails():
     )
     service = build('gmail', 'v1', credentials=creds)
 
-    results = service.users().messages().list(userId='me', maxResults=5).execute()
+    results = service.users().messages().list(userId='me', maxResults=3).execute()
     messages = results.get('messages', [])
 
     email_list = []
