@@ -142,6 +142,38 @@ def logout():
     session.pop("user", None)
     return redirect("/")
 
+# 📲 WhatsApp-Nachrichten abrufen
+@app.route("/api/whatsapp-messages")
+def whatsapp_messages():
+    RESPOND_API_TOKEN = os.getenv("RESPOND_API_TOKEN")
+    if not RESPOND_API_TOKEN:
+        return jsonify({"error": "Kein API-Token gesetzt"}), 500
+
+    headers = {
+        "Authorization": f"Bearer {RESPOND_API_TOKEN}"
+    }
+
+    seit = (datetime.datetime.utcnow() - datetime.timedelta(hours=12)).isoformat() + "Z"
+
+    params = {
+        "channel": "whatsapp",
+        "direction": "inbound",
+        "created_after": seit
+    }
+
+    try:
+        res = requests.get("https://api.respond.io/v2/messages", headers=headers, params=params)
+        data = res.json().get("data", [])
+        messages = [{
+            "name": m.get("contact", {}).get("name", "Unbekannt"),
+            "text": m.get("content", "[Leere Nachricht]"),
+            "time": m.get("created_at", "")
+        } for m in data[:10]]
+        return jsonify(messages)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ▶️ Nur lokal öffnen
 if __name__ == "__main__":
     import webbrowser, threading
