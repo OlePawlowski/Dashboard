@@ -159,7 +159,7 @@ def whatsapp_messages():
 
     params = {
         "channel_id": "389861",
-        "direction": "inbound",
+        "direction": "incoming",
         "after": seit
     }
 
