@@ -158,10 +158,11 @@ def whatsapp_messages():
     seit = (datetime.datetime.utcnow() - datetime.timedelta(hours=12)).isoformat() + "Z"
 
     params = {
-        "channel": "whatsapp",
+        "channel_id": "389861",
         "direction": "inbound",
-        "created_after": seit
+        "after": seit
     }
+
 
     try:
         res = requests.get("https://api.respond.io/v2/messages", headers=headers, params=params)
