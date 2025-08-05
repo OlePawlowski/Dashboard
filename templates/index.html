@@ -95,37 +95,6 @@
       </section>
     </main>
   </div>
-  
-    <!-- Whatsapp -->
-
-   <script>
-    async function ladeNachrichten() {
-      const box = document.getElementById("whatsapp-messages");
-      try {
-        const res = await fetch("/api/whatsapp-messages");
-        const daten = await res.json();
-
-        if (!daten || daten.length === 0) {
-          box.innerHTML = "<p>Keine neuen WhatsApp-Nachrichten.</p>";
-          return;
-        }
-
-        box.innerHTML = daten.map(msg => `
-          <div class="message">
-            <strong>${msg.name}</strong><br>
-            ${msg.text}<br>
-            <small>${new Date(msg.time).toLocaleString("de-DE")}</small>
-          </div>
-        `).join("");
-      } catch (err) {
-        box.innerHTML = "<p>Fehler beim Laden der Nachrichten.</p>";
-        console.error(err);
-      }
-    }
-
-    ladeNachrichten();
-    setInterval(ladeNachrichten, 60000); // alle 60 Sekunden neu laden
-  </script>
 
   <!-- Whatsapp -->
 
