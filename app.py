@@ -6,6 +6,8 @@ import os
 import datetime
 from dotenv import load_dotenv
 import json
+import requests
+
 
 # 🔃 .env laden (lokal)
 load_dotenv()
