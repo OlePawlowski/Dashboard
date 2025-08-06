@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 import json
 import requests
 
-
 # 🔃 .env laden (lokal)
 load_dotenv()
 
@@ -33,24 +32,20 @@ def load_credentials_from_env():
     return Credentials.from_authorized_user_info(token_data, SCOPES)
 
 # 📥 Anfrage empfangen
-
 @app.route("/api/externe-anfrage", methods=["POST"])
 def externe_anfrage():
     data = request.get_json()
     if not data:
         return jsonify({"error": "Ungültige Daten"}), 400
 
-    # Datei lesen
     try:
         with open("anfragen.json", "r") as f:
             anfragen = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         anfragen = []
 
-    # Neue Anfrage einfügen
     anfragen.insert(0, data)
 
-    # Datei speichern
     with open("anfragen.json", "w") as f:
         json.dump(anfragen, f)
 
@@ -58,15 +53,10 @@ def externe_anfrage():
 
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
-    # Entferne diese Zeile:
-    # if "user" not in session:
-    #     return jsonify({"error": "Nicht eingeloggt"}), 401
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "Ungültige Daten"}), 400
 
-    # Globale Speicherung in Datei oder Liste
     try:
         with open("anfragen.json", "r") as f:
             anfragen = json.load(f)
@@ -79,7 +69,6 @@ def neue_anfrage():
         json.dump(anfragen, f)
 
     return jsonify({"success": True})
-
 
 # 📤 Anfragen ausgeben
 @app.route("/api/get-anfragen")
@@ -89,7 +78,6 @@ def get_anfragen():
             return jsonify(json.load(f))
     except (FileNotFoundError, json.JSONDecodeError):
         return jsonify([])
-
 
 # 🔐 Login
 @app.route("/", methods=["GET", "POST"])
@@ -144,6 +132,42 @@ def logout():
     session.pop("user", None)
     return redirect("/")
 
+# 📩 Webhook von Chatwoot empfangen
+@app.route("/webhook/chatwoot", methods=["POST"])
+def chatwoot_webhook():
+    try:
+        data = request.get_json()
+        if data.get("event") != "message_created":
+            return "Ignored", 200
+        if data.get("message_type") != "incoming":
+            return "Ignored", 200
+
+        new_msg = {
+            "inbox_id": data.get("inbox", {}).get("id"),
+            "contact": data.get("contact", {}).get("name", "Unbekannt"),
+            "content": data.get("content"),
+            "created_at": data.get("created_at")
+        }
+
+        try:
+            with open("chatwoot_messages.json", "r") as f:
+                messages = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            messages = []
+
+        messages.insert(0, new_msg)
+
+        with open("chatwoot_messages.json", "w") as f:
+            json.dump(messages, f, indent=2)
+
+        print("📥 Neue Nachricht gespeichert:", new_msg)
+        return "OK", 200
+
+    except Exception as e:
+        print("⚠️ Fehler im Webhook:", e)
+        return "Error", 500
+
+# 📄 API: WhatsApp-Nachrichten anzeigen
 @app.route("/api/whatsapp-messages")
 def whatsapp_messages():
     try:
@@ -152,9 +176,7 @@ def whatsapp_messages():
     except (FileNotFoundError, json.JSONDecodeError):
         messages = []
 
-    return jsonify(messages[:10])  # zeige nur die 10 neuesten
-
-
+    return jsonify(messages[:10])
 
 # ▶️ Nur lokal öffnen
 if __name__ == "__main__":
