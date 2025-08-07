@@ -177,3 +177,14 @@ if __name__ == "__main__":
     import webbrowser, threading
     threading.Timer(1.5, lambda: webbrowser.open_new("http://127.0.0.1:5000")).start()
     app.run(debug=True)
+
+@app.route("/webhook/chatwoot", methods=["POST"])
+def chatwoot_webhook():
+    data = request.get_json()
+
+    # 👉 Zeige alles schön formatiert im Terminal
+    print("📦 Webhook-Payload:")
+    print(json.dumps(data, indent=2, ensure_ascii=False))  # für Umlaute
+
+    # (Rest deines Codes…)
+    return jsonify({"success": True})
