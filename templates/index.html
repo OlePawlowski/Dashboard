@@ -111,8 +111,8 @@
       box.innerHTML = daten.map(n => `
         <div class="message">
           <strong>${n.contact}</strong><br>
-          ${n.message}<br>
-          <small>${new Date(n.zeit).toLocaleString("de-DE")}</small>
+          ${n.text}<br>
+          <small>${new Date(n.time).toLocaleString("de-DE")}</small>
         </div>
       `).join("");
 
