@@ -137,8 +137,7 @@ def chatwoot_webhook():
         return "Ignored", 200
 
     new_message = {
-        "contact": data.get("contact", {}).get("name", "Unbekannt"),
-        "text": data.get("content", "[Leere Nachricht]"),
+        "contact": f"ID: {data.get('contact', {}).get('id', 'Unbekannt')}",        "text": data.get("content", "[Leere Nachricht]"),
         "time": data.get("created_at")
     }
 
