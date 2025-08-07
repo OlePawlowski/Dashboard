@@ -130,14 +130,26 @@ def get_emails():
 def chatwoot_webhook():
     data = request.get_json()
 
+    # 👉 Zeige alles schön formatiert im Terminal (für Debug)
+    print("📦 Webhook-Payload:")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
     if data.get("event") != "message_created":
         return "Ignored", 200
 
     if data.get("message_type") != "incoming":
         return "Ignored", 200
 
+    # Kontakt-Infos extrahieren
+    contact = data.get("contact", {})
+    contact_id = contact.get("id", "Unbekannt")
+    contact_name = contact.get("name", "Unbekannt")
+    contact_identifier = contact.get("identifier", "Unbekannt")
+
+    # Du kannst hier z. B. die ID oder Identifier oder beides verwenden
     new_message = {
-        "contact": f"ID: {data.get('contact', {}).get('id', 'Unbekannt')}",        "text": data.get("content", "[Leere Nachricht]"),
+        "contact": f"{contact_name} ({contact_identifier})",  # oder nur identifier
+        "text": data.get("content", "[Leere Nachricht]"),
         "time": data.get("created_at")
     }
 
@@ -151,9 +163,10 @@ def chatwoot_webhook():
     messages = messages[:100]
 
     with open("chatwoot_messages.json", "w") as f:
-        json.dump(messages, f)
+        json.dump(messages, f, indent=2)
 
     return jsonify({"success": True})
+
 
 # 📤 Letzte WhatsApp-Nachrichten abrufen
 @app.route("/api/whatsapp-messages")
@@ -177,14 +190,3 @@ if __name__ == "__main__":
     import webbrowser, threading
     threading.Timer(1.5, lambda: webbrowser.open_new("http://127.0.0.1:5000")).start()
     app.run(debug=True)
-
-@app.route("/webhook/chatwoot", methods=["POST"])
-def chatwoot_webhook():
-    data = request.get_json()
-
-    # 👉 Zeige alles schön formatiert im Terminal
-    print("📦 Webhook-Payload:")
-    print(json.dumps(data, indent=2, ensure_ascii=False))  # für Umlaute
-
-    # (Rest deines Codes…)
-    return jsonify({"success": True})
