@@ -138,7 +138,7 @@ def chatwoot_webhook():
 
     new_message = {
         "contact": data.get("contact", {}).get("name", "Unbekannt"),
-        "text": data.get("content", "[Leere Nachricht]"),
+        "text": data.get("text", "[Leere Nachricht]"),
         "time": data.get("created_at")
     }
 
