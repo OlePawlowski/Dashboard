@@ -8,15 +8,30 @@ from dotenv import load_dotenv
 import json
 import requests
 import uuid
+from models import db, User, Anfrage
 
 # 🔃 .env laden (lokal)
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback")
+
+# DB-Config (SQLite default, Postgres via DATABASE_URL)
+database_url = os.getenv("DATABASE_URL", "sqlite:///app.db")
+# Heroku-Style postgres:// → postgresql://
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 CORS(app)
 
-# 👥 Benutzer
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+
+# 👥 Benutzer (Session-basierter Zugang für aktuelles Template)
 USERS = {
     os.getenv("USER_1_NAME"): os.getenv("USER_1_PASS"),
     os.getenv("USER_2_NAME"): os.getenv("USER_2_PASS")
@@ -32,68 +47,38 @@ def load_credentials_from_env():
     token_data = json.loads(token_str)
     return Credentials.from_authorized_user_info(token_data, SCOPES)
 
-# 🔧 Mitarbeiter Speicher-Hilfen
-MITARBEITER_FILE = "mitarbeiter.json"
-
-def _read_mitarbeiter():
-    try:
-        with open(MITARBEITER_FILE, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
-
-def _write_mitarbeiter(items):
-    with open(MITARBEITER_FILE, "w") as f:
-        json.dump(items, f, indent=2, ensure_ascii=False)
-
-# 📥 Anfrage empfangen
+# 📥 Anfrage empfangen (extern)
 @app.route("/api/externe-anfrage", methods=["POST"])
 def externe_anfrage():
-    data = request.get_json()
-    if not data:
+    data = request.get_json() or {}
+    name = data.get("name")
+    tel = data.get("tel")
+    if not name:
         return jsonify({"error": "Ungültige Daten"}), 400
+    anfrage = Anfrage(name=name, tel=tel)
+    db.session.add(anfrage)
+    db.session.commit()
+    return jsonify({"success": True, "id": anfrage.id})
 
-    try:
-        with open("anfragen.json", "r") as f:
-            anfragen = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        anfragen = []
-
-    anfragen.insert(0, data)
-
-    with open("anfragen.json", "w") as f:
-        json.dump(anfragen, f)
-
-    return jsonify({"success": True})
-
+# 📥 Anfrage anlegen (intern)
 @app.route("/api/anfrage", methods=["POST"])
 def neue_anfrage():
-    data = request.get_json()
-    if not data:
+    data = request.get_json() or {}
+    name = data.get("name")
+    tel = data.get("tel")
+    if not name:
         return jsonify({"error": "Ungültige Daten"}), 400
-
-    try:
-        with open("anfragen.json", "r") as f:
-            anfragen = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        anfragen = []
-
-    anfragen.insert(0, data)
-
-    with open("anfragen.json", "w") as f:
-        json.dump(anfragen, f)
-
-    return jsonify({"success": True})
+    anfrage = Anfrage(name=name, tel=tel)
+    db.session.add(anfrage)
+    db.session.commit()
+    return jsonify({"success": True, "id": anfrage.id})
 
 @app.route("/api/get-anfragen")
 def get_anfragen():
-    try:
-        with open("anfragen.json", "r") as f:
-            return jsonify(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return jsonify([])
+    anfragen = Anfrage.query.order_by(Anfrage.id.desc()).limit(100).all()
+    return jsonify([a.to_dict() for a in anfragen])
 
-# 🔐 Login
+# 🔐 Login (Session)
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -195,43 +180,47 @@ def whatsapp_messages():
 
     return jsonify(messages[:10])
 
-# 👤 Aktueller Nutzer
+# 👤 Aktueller Nutzer (Session)
 @app.route("/api/me")
 def who_am_i():
     if "user" not in session:
         return jsonify({"authenticated": False}), 200
     return jsonify({"authenticated": True, "username": session["user"]})
 
-# 👥 Mitarbeiter-API
+# 👥 Mitarbeiter-API (DB-gestützt)
 @app.route("/api/users", methods=["GET", "POST"])
 def users_api():
     if "user" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 401
 
     if request.method == "GET":
-        return jsonify(_read_mitarbeiter())
+        users = User.query.order_by(User.id.desc()).all()
+        return jsonify([u.to_public_dict() for u in users])
 
     # POST anlegen
     payload = request.get_json() or {}
     name = payload.get("name")
     email = payload.get("email")
-    role = payload.get("role")
+    role = payload.get("role") or "employee"
     avatar = payload.get("avatar")
 
     if not name or not email:
         return jsonify({"error": "name und email sind erforderlich"}), 400
 
-    items = _read_mitarbeiter()
-    new_item = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "email": email,
-        "role": role or "Mitarbeiter/in",
-        "avatar": avatar or "https://ui-avatars.com/api/?name=" + name.replace(" ", "+")
-    }
-    items.insert(0, new_item)
-    _write_mitarbeiter(items)
-    return jsonify(new_item), 201
+    username = payload.get("username") or name.lower().replace(" ", ".")
+    # Generisches Initialpasswort (sollte via Reset-Flow geändert werden)
+    initial_password = payload.get("password") or uuid.uuid4().hex[:10]
+
+    user = User(username=username, email=email, role=role, avatar=avatar or (
+        "https://ui-avatars.com/api/?name=" + name.replace(" ", "+")
+    ))
+    user.set_password(initial_password)
+    db.session.add(user)
+    db.session.commit()
+
+    response = user.to_public_dict()
+    response.update({"initial_password": initial_password})
+    return jsonify(response), 201
 
 # 🔓 Logout
 @app.route("/logout")

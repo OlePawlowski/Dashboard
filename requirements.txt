@@ -5,6 +5,8 @@ charset-normalizer==3.4.2
 click==8.1.8
 Flask==3.1.1
 flask-cors==6.0.1
+Flask-SQLAlchemy==3.1.1
+Flask-JWT-Extended==4.6.0
 google-api-core==2.25.1
 google-api-python-client==2.177.0
 google-auth==2.40.3
@@ -29,6 +31,8 @@ python-dotenv==1.1.1
 requests==2.32.4
 requests-oauthlib==2.0.0
 rsa==4.9.1
+SQLAlchemy==2.0.31
+psycopg2-binary==2.9.9
 uritemplate==4.2.0
 urllib3==2.5.0
 Werkzeug==3.1.3
