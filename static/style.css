@@ -258,3 +258,115 @@ body {
 .working-format strong {
   color: #2c2c2c;
 }
+
+/* Team */
+.team {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1.5rem;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+}
+
+.team-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.add-user-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-user-form input {
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.add-user-form button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 10px;
+  background-color: #4CAF50;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.team-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.team-card {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.team-card img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+
+.team-card-body {
+  display: grid;
+}
+
+.team-card-name {
+  font-weight: 700;
+}
+
+.team-card-role {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.team-card-email {
+  font-size: 0.9rem;
+  color: #444;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .team-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .middle-row {
+    grid-template-columns: 1fr;
+  }
+  .team-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+}

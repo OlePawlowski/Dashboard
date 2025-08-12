@@ -7,6 +7,7 @@ import datetime
 from dotenv import load_dotenv
 import json
 import requests
+import uuid
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -30,6 +31,20 @@ def load_credentials_from_env():
         raise Exception("TOKEN_JSON nicht gesetzt")
     token_data = json.loads(token_str)
     return Credentials.from_authorized_user_info(token_data, SCOPES)
+
+# 🔧 Mitarbeiter Speicher-Hilfen
+MITARBEITER_FILE = "mitarbeiter.json"
+
+def _read_mitarbeiter():
+    try:
+        with open(MITARBEITER_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def _write_mitarbeiter(items):
+    with open(MITARBEITER_FILE, "w") as f:
+        json.dump(items, f, indent=2, ensure_ascii=False)
 
 # 📥 Anfrage empfangen
 @app.route("/api/externe-anfrage", methods=["POST"])
@@ -95,7 +110,8 @@ def login():
 def dashboard():
     if "user" not in session:
         return redirect("/")
-    return render_template("index.html")
+    aktuelles_datum = datetime.datetime.now().strftime('%A, %d. %B %Y')
+    return render_template("index.html", aktuelles_datum=aktuelles_datum)
 
 # 📧 Gmail API
 @app.route("/api/emails")
@@ -178,6 +194,44 @@ def whatsapp_messages():
         messages = []
 
     return jsonify(messages[:10])
+
+# 👤 Aktueller Nutzer
+@app.route("/api/me")
+def who_am_i():
+    if "user" not in session:
+        return jsonify({"authenticated": False}), 200
+    return jsonify({"authenticated": True, "username": session["user"]})
+
+# 👥 Mitarbeiter-API
+@app.route("/api/users", methods=["GET", "POST"])
+def users_api():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+
+    if request.method == "GET":
+        return jsonify(_read_mitarbeiter())
+
+    # POST anlegen
+    payload = request.get_json() or {}
+    name = payload.get("name")
+    email = payload.get("email")
+    role = payload.get("role")
+    avatar = payload.get("avatar")
+
+    if not name or not email:
+        return jsonify({"error": "name und email sind erforderlich"}), 400
+
+    items = _read_mitarbeiter()
+    new_item = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "email": email,
+        "role": role or "Mitarbeiter/in",
+        "avatar": avatar or "https://ui-avatars.com/api/?name=" + name.replace(" ", "+")
+    }
+    items.insert(0, new_item)
+    _write_mitarbeiter(items)
+    return jsonify(new_item), 201
 
 # 🔓 Logout
 @app.route("/logout")
