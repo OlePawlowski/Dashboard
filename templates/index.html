@@ -5,34 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a2e0f2ac1f.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-  <!-- SVG Hintergrund -->
-  <svg class="bcg" preserveAspectRatio="xMidYMid slice" viewBox="10 10 80 80">
-    <defs>
-      <style>
-        @keyframes rotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .out-top { animation: rotate 20s linear infinite; transform-origin: 13px 25px; }
-        .in-top { animation: rotate 10s linear infinite; transform-origin: 13px 25px; }
-        .out-bottom { animation: rotate 25s linear infinite; transform-origin: 84px 93px; }
-        .in-bottom { animation: rotate 15s linear infinite; transform-origin: 84px 93px; }
-      </style>
-    </defs>
-    <path fill="#f780600f" class="out-top" d="M37-5C25.1-14.7,5.7-19.1-9.2-10-28.5,1.8-32.7,31.1-19.8,49c15.5,21.5,52.6,22,67.2,2.3C59.4,35,53.7,8.5,37-5Z"/>
-    <path fill="#f780600f" class="in-top" d="M20.6,4.1C11.6,1.5-1.9,2.5-8,11.2-16.3,23.1-8.2,45.6,7.4,50S42.1,38.9,41,24.5C40.2,14.1,29.4,6.6,20.6,4.1Z"/>
-    <path fill="#f780600f" class="out-bottom" d="M105.9,48.6c-12.4-8.2-29.3-4.8-39.4,0.8-23.4,12.8-37.7,51.9-19.1,74.1s63.9,15.3,76-5.6c7.6-13.3,1.8-31.1-2.3-43.8C117.6,63.3,114.7,54.3,105.9,48.6Z"/>
-    <path fill="#f780600f" class="in-bottom" d="M102,67.1c-9.6-6.1-22-3.1-29.5,2-15.4,10.7-19.6,37.5-7.6,47.8s35.9,3.9,44.5-12.5C115.5,92.6,113.9,74.6,102,67.1Z"/>
-  </svg>
+  <!-- Liquid Glass Background -->
+  <div class="bg-blobs">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+  </div>
 
   <div class="dashboard-layout">
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar glass">
       <div class="logo">
         <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo">
       </div>
@@ -41,42 +28,42 @@
       </div>
       <ul class="nav">
         <li class="active"><i class="fas fa-home"></i> Dashboard</li>
-        <li ><i class="fas fa-calendar-alt"></i><a style="cursor: pointer; all: unset;" href="https://calendar.google.com/calendar/u/0/r"> Kalendar</a></li>
+        <li><i class="fas fa-calendar-alt"></i><a style="cursor: pointer; all: unset;" href="https://calendar.google.com/calendar/u/0/r"> Kalendar</a></li>
         <li><i class="fas fa-life-ring"></i> Hilfe</li>
       </ul>
     </aside>
 
     <!-- Main Content -->
     <main class="main-content">
-      <div class="topbar">
+      <div class="topbar glass">
         <h1>Dashboard</h1>
         <div style="text-align: right;">
-          <h1>{{ aktuelles_datum }}</h1>
-          <p id="liveClock" style="font-size: 1rem; color: #666;"></p>
+          <h1 class="date-gradient">{{ aktuelles_datum }}</h1>
+          <p id="liveClock" class="muted"></p>
         </div>
       </div>
 
       <!-- KPI Cards -->
       <section class="kpis">
-        <div class="kpi-card"><h4>Anfragen</h4><p>23</p></div>
-        <div class="kpi-card"><h4>Einsätze</h4><p>70</p></div>
-        <div class="kpi-card"><h4>Betreuungskräfte</h4><p>500</p></div>
+        <div class="kpi-card glass"><h4>Anfragen</h4><p>23</p></div>
+        <div class="kpi-card glass"><h4>Einsätze</h4><p>70</p></div>
+        <div class="kpi-card glass"><h4>Betreuungskräfte</h4><p>500</p></div>
       </section>
       
       <section class="middle-row">
-        <div class="einsaetze">
+        <div class="einsaetze glass">
           <h3>Anfragen</h3>
           <div id="einsatzList">
             <p>Lade Anfragen...</p>
           </div>
         </div>
 
-        <div class="kpi-score" id="whatsapp-box">
+        <div class="kpi-score glass" id="whatsapp-box">
           <h3>Whatsapp Nachrichten</h3>
           <div id="whatsapp-messages">Lade Nachrichten...</div>
         </div>
 
-        <div class="top-performance">
+        <div class="top-performance glass">
             <h3>Notizen</h3>
             <textarea id="notizenEditor" placeholder="Schreibe dir eine Notiz..."></textarea>
             <button id="saveNote">Speichern</button>
@@ -85,7 +72,7 @@
       </section>
 
       <!-- Team Sektion -->
-      <section class="team">
+      <section class="team glass">
         <div class="team-header">
           <h3>Team</h3>
           <form id="addUserForm" class="add-user-form">
@@ -101,7 +88,7 @@
       </section>
 
       <!-- Teamnotizen Sektion -->
-      <section class="team-notes">
+      <section class="team-notes glass">
         <div class="team-notes-header">
           <h3>Teamnotizen</h3>
           <form id="teamNoteForm" class="team-note-form">
@@ -115,7 +102,7 @@
       </section>
 
       <!-- Gmail Bereich -->
-      <section class="working-format">
+      <section class="working-format glass">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
           <h3>Gmail</h3>
           <a href="/gmail/connect" class="btn-small">Gmail verbinden</a>
@@ -142,7 +129,7 @@
       }
 
       box.innerHTML = daten.map(n => `
-        <div class="message">
+        <div class="message glass">
           <strong>${n.contact}</strong><br>
           ${n.text}<br>
           <small>${new Date(n.time).toLocaleString("de-DE")}</small>
@@ -205,15 +192,14 @@
 
     data.forEach(item => {
       const card = document.createElement("div");
-      card.className = "meeting-card";
+      card.className = "meeting-card glass";
       card.innerHTML = `
         <strong>${item.name}</strong><br>
         <small>📞 ${item.tel}</small>
       `;
 
-      // 👉 Click-Handler hinzufügen:
       card.addEventListener("click", () => {
-        window.location.href = "https://app.maidplus.de/client"; // Im selben Tab
+        window.location.href = "https://app.maidplus.de/client";
       });
 
       list.appendChild(card);
@@ -234,7 +220,7 @@
         return;
       }
       teamGrid.innerHTML = items.map(u => `
-        <div class="team-card">
+        <div class="team-card glass">
           <img src="${u.avatar}" alt="${u.name || u.username}" />
           <div class="team-card-body">
             <div class="team-card-name">${u.name || u.username}</div>
@@ -287,7 +273,7 @@
         return;
       }
       teamNotesList.innerHTML = items.map(n => `
-        <div class="team-note-item">
+        <div class="team-note-item glass">
           <div class="team-note-content">${n.content}</div>
           <div class="team-note-meta">${n.author || ''} • ${new Date(n.created_at).toLocaleString('de-DE')}</div>
           <button class="team-note-delete" data-id="${n.id}">Löschen</button>
