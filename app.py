@@ -10,12 +10,17 @@ import json
 import requests
 import uuid
 from models import db, User, Anfrage, TeamNote, GmailCredential
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # 🔃 .env laden (lokal)
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback")
+
+# Hinter Proxy (Railway) korrekte Host/Proto übernehmen
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # DB-Config (SQLite default, Postgres via DATABASE_URL)
 database_url = os.getenv("DATABASE_URL", "sqlite:///app.db")
