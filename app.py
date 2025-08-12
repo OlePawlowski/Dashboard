@@ -2,13 +2,14 @@ from flask import Flask, render_template, request, redirect, session, jsonify, u
 from flask_cors import CORS
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import Flow
 import os
 import datetime
 from dotenv import load_dotenv
 import json
 import requests
 import uuid
-from models import db, User, Anfrage
+from models import db, User, Anfrage, TeamNote, GmailCredential
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -39,13 +40,61 @@ USERS = {
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-# 📬 E-Mail Auth über Environment
+# 📬 E-Mail Auth über Environment (Fallback)
 def load_credentials_from_env():
     token_str = os.getenv("TOKEN_JSON")
     if not token_str:
         raise Exception("TOKEN_JSON nicht gesetzt")
     token_data = json.loads(token_str)
     return Credentials.from_authorized_user_info(token_data, SCOPES)
+
+# 📬 Nutzerbezogene Gmail-Creds
+def load_user_gmail_credentials(username: str):
+    cred = GmailCredential.query.filter_by(username=username).order_by(GmailCredential.id.desc()).first()
+    if not cred:
+        return None
+    try:
+        token_data = json.loads(cred.token_json)
+        return Credentials.from_authorized_user_info(token_data, SCOPES)
+    except Exception:
+        return None
+
+# 📬 Gmail OAuth start
+@app.route('/gmail/connect')
+def gmail_connect():
+    if "user" not in session:
+        return redirect("/")
+    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    if not client_config_json:
+        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
+    client_config = json.loads(client_config_json)
+    redirect_uri = url_for('gmail_callback', _external=True)
+    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+    authorization_url, state = flow.authorization_url(
+        access_type='offline', include_granted_scopes='true', prompt='consent'
+    )
+    session['oauth_state'] = state
+    return redirect(authorization_url)
+
+# 📬 Gmail OAuth callback
+@app.route('/gmail/callback')
+def gmail_callback():
+    if "user" not in session:
+        return redirect("/")
+    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    if not client_config_json:
+        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
+    client_config = json.loads(client_config_json)
+    redirect_uri = url_for('gmail_callback', _external=True)
+    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+    flow.fetch_token(authorization_response=request.url)
+    creds: Credentials = flow.credentials
+    token_json = creds.to_json()
+
+    entry = GmailCredential(username=session.get('user'), token_json=token_json)
+    db.session.add(entry)
+    db.session.commit()
+    return redirect('/dashboard')
 
 # 📥 Anfrage empfangen (extern)
 @app.route("/api/externe-anfrage", methods=["POST"])
@@ -105,7 +154,7 @@ def get_emails():
         return jsonify({"error": "Nicht eingeloggt"}), 401
 
     try:
-        creds = load_credentials_from_env()
+        creds = load_user_gmail_credentials(session['user']) or load_credentials_from_env()
         service = build('gmail', 'v1', credentials=creds)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])
@@ -221,6 +270,37 @@ def users_api():
     response = user.to_public_dict()
     response.update({"initial_password": initial_password})
     return jsonify(response), 201
+
+# 🗒️ Teamnotizen API
+@app.route('/api/team-notes', methods=['GET', 'POST'])
+def team_notes():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+
+    if request.method == 'GET':
+        notes = TeamNote.query.order_by(TeamNote.id.desc()).limit(200).all()
+        return jsonify([n.to_dict() for n in notes])
+
+    payload = request.get_json() or {}
+    content = payload.get('content')
+    if not content:
+        return jsonify({"error": "content erforderlich"}), 400
+    author = session.get('user')
+    note = TeamNote(content=content, author=author)
+    db.session.add(note)
+    db.session.commit()
+    return jsonify(note.to_dict()), 201
+
+@app.route('/api/team-notes/<int:note_id>', methods=['DELETE'])
+def delete_team_note(note_id: int):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    note = TeamNote.query.get(note_id)
+    if not note:
+        return jsonify({"error": "Notiz nicht gefunden"}), 404
+    db.session.delete(note)
+    db.session.commit()
+    return jsonify({"success": True})
 
 # 🔓 Logout
 @app.route("/logout")

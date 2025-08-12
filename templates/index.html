@@ -100,9 +100,26 @@
         </div>
       </section>
 
+      <!-- Teamnotizen Sektion -->
+      <section class="team-notes">
+        <div class="team-notes-header">
+          <h3>Teamnotizen</h3>
+          <form id="teamNoteForm" class="team-note-form">
+            <input type="text" name="content" placeholder="Neue Notiz hinzufügen..." required />
+            <button type="submit">Speichern</button>
+          </form>
+        </div>
+        <div id="teamNotesList" class="team-notes-list">
+          <!-- Notizen -->
+        </div>
+      </section>
+
       <!-- Gmail Bereich -->
       <section class="working-format">
-        <h3>Gmail</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+          <h3>Gmail</h3>
+          <a href="/gmail/connect" class="btn-small">Gmail verbinden</a>
+        </div>
         <ul id="email-list">
           <li>Lade E-Mails...</li>
         </ul>
@@ -197,7 +214,6 @@
       // 👉 Click-Handler hinzufügen:
       card.addEventListener("click", () => {
         window.location.href = "https://app.maidplus.de/client"; // Im selben Tab
-        // window.open("https://app.maidplus.de/client", "_blank"); // Alternativ: in neuem Tab
       });
 
       list.appendChild(card);
@@ -219,9 +235,9 @@
       }
       teamGrid.innerHTML = items.map(u => `
         <div class="team-card">
-          <img src="${u.avatar}" alt="${u.name}" />
+          <img src="${u.avatar}" alt="${u.name || u.username}" />
           <div class="team-card-body">
-            <div class="team-card-name">${u.name}</div>
+            <div class="team-card-name">${u.name || u.username}</div>
             <div class="team-card-role">${u.role || ''}</div>
             <div class="team-card-email">${u.email}</div>
           </div>
@@ -258,6 +274,68 @@
     });
 
     loadTeam();
+  </script>
+
+  <!-- Teamnotizen laden/hinzufügen/löschen -->
+  <script>
+    const teamNotesList = document.getElementById('teamNotesList');
+    const teamNoteForm = document.getElementById('teamNoteForm');
+
+    function renderNotes(items) {
+      if (!items.length) {
+        teamNotesList.innerHTML = '<p>Keine Teamnotizen vorhanden.</p>';
+        return;
+      }
+      teamNotesList.innerHTML = items.map(n => `
+        <div class="team-note-item">
+          <div class="team-note-content">${n.content}</div>
+          <div class="team-note-meta">${n.author || ''} • ${new Date(n.created_at).toLocaleString('de-DE')}</div>
+          <button class="team-note-delete" data-id="${n.id}">Löschen</button>
+        </div>
+      `).join('');
+      document.querySelectorAll('.team-note-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.currentTarget.getAttribute('data-id');
+          try {
+            const res = await fetch(`/api/team-notes/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Fehler beim Löschen');
+            await loadNotes();
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
+        });
+      });
+    }
+
+    async function loadNotes() {
+      try {
+        const res = await fetch('/api/team-notes');
+        const items = await res.json();
+        renderNotes(items);
+      } catch (e) {
+        teamNotesList.innerHTML = '<p>Fehler beim Laden der Notizen.</p>';
+      }
+    }
+
+    teamNoteForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(teamNoteForm);
+      const payload = Object.fromEntries(formData.entries());
+      try {
+        const res = await fetch('/api/team-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Fehler beim Speichern');
+        teamNoteForm.reset();
+        await loadNotes();
+      } catch (e) {
+        alert('❌ ' + e.message);
+      }
+    });
+
+    loadNotes();
   </script>
 
   <!-- Gmail laden -->

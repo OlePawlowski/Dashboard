@@ -51,3 +51,31 @@ class Anfrage(db.Model):
             'tel': self.tel,
             'created_at': self.created_at.isoformat(),
         }
+
+
+class TeamNote(db.Model):
+    __tablename__ = 'team_notes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    author = db.Column(db.String(120), nullable=True)  # optional: Nutzername aus Session
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'content': self.content,
+            'author': self.author,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class GmailCredential(db.Model):
+    __tablename__ = 'gmail_credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    username = db.Column(db.String(80), nullable=True, index=True)
+    token_json = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
