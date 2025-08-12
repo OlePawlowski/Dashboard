@@ -446,3 +446,23 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Utility Glass + Helpers (keeps original colors) */
+.glass {
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+}
+
+.muted { color: #666; }
+.date-gradient { color: inherit; }
+
+.btn-small {
+  padding: 0.45rem 0.8rem;
+  border-radius: 10px;
+  text-decoration: none;
+  background: #f78060;
+  color: white;
+  font-weight: 700;
+}
