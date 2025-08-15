@@ -38,12 +38,58 @@ with app.app_context():
     db.create_all()
 
 # 👥 Benutzer (Session-basierter Zugang für aktuelles Template)
-USERS = {
-    os.getenv("USER_1_NAME"): os.getenv("USER_1_PASS"),
-    os.getenv("USER_2_NAME"): os.getenv("USER_2_PASS")
-}
+USERS = {}
+for i in range(1, 4):
+    name = os.getenv(f"USER_{i}_NAME")
+    pw = os.getenv(f"USER_{i}_PASS")
+    if name and pw:
+        USERS[name] = pw
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# 📬 Google OAuth Flow Builder (env or credentials.json fallback)
+def build_google_flow(redirect_uri: str) -> Flow:
+    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
+    # 1) Try JSON from env (robust to accidental extra quotes and double-encoded JSON)
+    if client_config_json:
+        def normalize_json_text(t: str) -> str:
+            s = (t or '').strip()
+            for _ in range(2):
+                if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                    s = s[1:-1]
+            s = s.replace('\\"', '"')
+            return s
+        txt = normalize_json_text(client_config_json)
+        for _ in range(3):
+            try:
+                maybe = json.loads(txt)
+                if isinstance(maybe, dict):
+                    return Flow.from_client_config(maybe, scopes=SCOPES, redirect_uri=redirect_uri)
+                if isinstance(maybe, str):
+                    txt = normalize_json_text(maybe)
+                    continue
+                break
+            except Exception:
+                break
+    # 2) Try credentials file
+    if os.path.exists(client_config_path):
+        return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri)
+    # 3) Fallback to individual ID/SECRET
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    if client_id and client_secret:
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
+            }
+        }
+        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+    raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON (als reines JSON ohne zusätzliche Anführungszeichen), oder lege credentials.json ab, oder setze GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.")
 
 # 📬 E-Mail Auth über Environment (Fallback)
 def load_credentials_from_env():
@@ -69,36 +115,41 @@ def load_user_gmail_credentials(username: str):
 def gmail_connect():
     if "user" not in session:
         return redirect("/")
-    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
-    if not client_config_json:
-        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
-    client_config = json.loads(client_config_json)
-    redirect_uri = url_for('gmail_callback', _external=True)
-    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-    authorization_url, state = flow.authorization_url(
-        access_type='offline', include_granted_scopes='true', prompt='consent'
-    )
-    session['oauth_state'] = state
-    return redirect(authorization_url)
+    try:
+        redirect_uri = url_for('gmail_callback', _external=True)
+        flow = build_google_flow(redirect_uri)
+        authorization_url, state = flow.authorization_url(
+            access_type='offline', include_granted_scopes='true', prompt='consent',
+            redirect_uri=redirect_uri
+        )
+        session['oauth_state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        return f"Google OAuth Fehler ({url_for('gmail_callback', _external=True)}): {str(e)}", 400
 
 # 📬 Gmail OAuth callback
 @app.route('/gmail/callback')
 def gmail_callback():
     if "user" not in session:
         return redirect("/")
-    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
-    if not client_config_json:
-        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
-    client_config = json.loads(client_config_json)
+    # optional: validate state
+    expected_state = session.get('oauth_state')
+    incoming_state = request.args.get('state')
+    if expected_state and incoming_state and expected_state != incoming_state:
+        return "Ungültiger OAuth-Status (state mismatch)", 400
     redirect_uri = url_for('gmail_callback', _external=True)
-    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-    flow.fetch_token(authorization_response=request.url)
+    try:
+        flow = build_google_flow(redirect_uri)
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        return f"Google OAuth Fehler: {str(e)}", 400
     creds: Credentials = flow.credentials
     token_json = creds.to_json()
 
     entry = GmailCredential(username=session.get('user'), token_json=token_json)
     db.session.add(entry)
     db.session.commit()
+    session.pop('oauth_state', None)
     return redirect('/dashboard')
 
 # 📥 Anfrage empfangen (extern)
@@ -150,7 +201,8 @@ def dashboard():
     if "user" not in session:
         return redirect("/")
     aktuelles_datum = datetime.datetime.now().strftime('%A, %d. %B %Y')
-    return render_template("index.html", aktuelles_datum=aktuelles_datum)
+    username = session.get("user")
+    return render_template("index.html", aktuelles_datum=aktuelles_datum, username=username)
 
 # 📧 Gmail API
 @app.route("/api/emails")
@@ -159,7 +211,9 @@ def get_emails():
         return jsonify({"error": "Nicht eingeloggt"}), 401
 
     try:
-        creds = load_user_gmail_credentials(session['user']) or load_credentials_from_env()
+        creds = load_user_gmail_credentials(session['user'])
+        if not creds:
+            return jsonify({"error": "Kein Gmail-Konto verbunden. Bitte zuerst verbinden."}), 400
         service = build('gmail', 'v1', credentials=creds)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])
@@ -312,6 +366,83 @@ def delete_team_note(note_id: int):
 def logout():
     session.pop("user", None)
     return redirect("/")
+
+def _mask(value: str, show: int = 6) -> str:
+    if not value:
+        return ""
+    if len(value) <= show:
+        return value
+    return value[:show] + "…"
+
+@app.route("/debug/oauth")
+def debug_oauth():
+    if "user" not in session:
+        return redirect("/")
+    redirect_uri = url_for('gmail_callback', _external=True)
+    info = {"redirect_uri": redirect_uri}
+
+    # Try env JSON
+    src = None
+    raw = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    if raw:
+        txt = raw.strip()
+        try:
+            cfg = json.loads(txt)
+            src = "env_json"
+        except Exception:
+            try:
+                if (txt.startswith('"') and txt.endswith('"')) or (txt.startswith("'") and txt.endswith("'")):
+                    txt = txt[1:-1]
+                txt = txt.replace('\\"', '"')
+                cfg = json.loads(txt)
+                src = "env_json_unquoted"
+            except Exception:
+                cfg = None
+        if cfg:
+            web = cfg.get('web', {})
+            info.update({
+                "source": src,
+                "client_id": _mask(web.get('client_id', '')),
+                "has_client_secret": bool(web.get('client_secret')),
+                "authorized_redirect_uris": web.get('redirect_uris', [])
+            })
+            return jsonify(info)
+
+    # Try file
+    path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                cfg = json.load(f)
+            web = cfg.get('web', {})
+            info.update({
+                "source": f"file:{path}",
+                "client_id": _mask(web.get('client_id', '')),
+                "has_client_secret": bool(web.get('client_secret')),
+                "authorized_redirect_uris": web.get('redirect_uris', [])
+            })
+            return jsonify(info)
+        except Exception as e:
+            info.update({"source": f"file:{path}", "error": str(e)})
+            return jsonify(info), 200
+
+    # Fallback to id/secret
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    if client_id and client_secret:
+        info.update({
+            "source": "env_id_secret",
+            "client_id": _mask(client_id),
+            "has_client_secret": True,
+            "authorized_redirect_uris": ["(configured in Google Cloud console)"]
+        })
+        return jsonify(info)
+
+    info.update({
+        "source": "none",
+        "error": "No Google OAuth config found"
+    })
+    return jsonify(info), 200
 
 # ▶️ Nur lokal öffnen
 if __name__ == "__main__":
