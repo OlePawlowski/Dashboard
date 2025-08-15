@@ -48,7 +48,7 @@ for i in range(1, 4):
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # 📬 Google OAuth Flow Builder (env or credentials.json fallback)
-def build_google_flow(redirect_uri: str) -> Flow:
+def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
     client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
     client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
     # 1) Try JSON from env (robust to accidental extra quotes and double-encoded JSON)
@@ -65,7 +65,7 @@ def build_google_flow(redirect_uri: str) -> Flow:
             try:
                 maybe = json.loads(txt)
                 if isinstance(maybe, dict):
-                    return Flow.from_client_config(maybe, scopes=SCOPES, redirect_uri=redirect_uri)
+                    return Flow.from_client_config(maybe, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
                 if isinstance(maybe, str):
                     txt = normalize_json_text(maybe)
                     continue
@@ -74,7 +74,7 @@ def build_google_flow(redirect_uri: str) -> Flow:
                 break
     # 2) Try credentials file
     if os.path.exists(client_config_path):
-        return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri)
+        return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
     # 3) Fallback to individual ID/SECRET
     client_id = os.getenv('GOOGLE_CLIENT_ID')
     client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
@@ -83,12 +83,12 @@ def build_google_flow(redirect_uri: str) -> Flow:
             "web": {
                 "client_id": client_id,
                 "client_secret": client_secret,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
             }
         }
-        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
     raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON (als reines JSON ohne zusätzliche Anführungszeichen), oder lege credentials.json ab, oder setze GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.")
 
 # 📬 E-Mail Auth über Environment (Fallback)
@@ -118,11 +118,28 @@ def gmail_connect():
     try:
         redirect_uri = url_for('gmail_callback', _external=True)
         flow = build_google_flow(redirect_uri)
+        # Validate client type and redirect URI allowlist to prevent Google "invalid request"
+        try:
+            if getattr(flow, 'client_type', None) != 'web':
+                return (
+                    "Zugriff blockiert: Falscher OAuth-Clienttyp. Bitte in der Google Cloud Console einen 'Webanwendung'-OAuth-Client verwenden (nicht 'Installed').",
+                    400,
+                )
+            allowed = (flow.client_config or {}).get('redirect_uris', [])
+            if allowed and redirect_uri not in allowed:
+                return (
+                    f"Zugriff blockiert: Redirect URI nicht erlaubt. Füge {redirect_uri} in der Google Cloud Console unter 'Authorized redirect URIs' hinzu.",
+                    400,
+                )
+        except Exception:
+            pass
         authorization_url, state = flow.authorization_url(
-            access_type='offline', include_granted_scopes='true', prompt='consent',
-            redirect_uri=redirect_uri
+            access_type='offline', include_granted_scopes='true', prompt='consent'
         )
         session['oauth_state'] = state
+        # Persist PKCE code_verifier for the callback token exchange
+        if getattr(flow, 'code_verifier', None):
+            session['oauth_code_verifier'] = flow.code_verifier
         return redirect(authorization_url)
     except Exception as e:
         return f"Google OAuth Fehler ({url_for('gmail_callback', _external=True)}): {str(e)}", 400
@@ -139,7 +156,11 @@ def gmail_callback():
         return "Ungültiger OAuth-Status (state mismatch)", 400
     redirect_uri = url_for('gmail_callback', _external=True)
     try:
-        flow = build_google_flow(redirect_uri)
+        # Recreate flow with same state; set PKCE code_verifier if present
+        flow = build_google_flow(redirect_uri, state=expected_state)
+        code_verifier = session.get('oauth_code_verifier')
+        if code_verifier:
+            flow.code_verifier = code_verifier
         flow.fetch_token(authorization_response=request.url)
     except Exception as e:
         return f"Google OAuth Fehler: {str(e)}", 400
@@ -150,6 +171,7 @@ def gmail_callback():
     db.session.add(entry)
     db.session.commit()
     session.pop('oauth_state', None)
+    session.pop('oauth_code_verifier', None)
     return redirect('/dashboard')
 
 # 📥 Anfrage empfangen (extern)
