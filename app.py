@@ -51,12 +51,40 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 def build_google_flow(redirect_uri: str) -> Flow:
     client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
     client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
+    # 1) Try JSON from env (robust to accidental extra quotes)
     if client_config_json:
-        client_config = json.loads(client_config_json)
-        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+        raw = client_config_json.strip()
+        try:
+            client_config = json.loads(raw)
+            return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+        except Exception:
+            try:
+                # try stripping surrounding quotes and unescaping common patterns
+                if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
+                    raw = raw[1:-1]
+                raw = raw.replace('\\"', '"')
+                client_config = json.loads(raw)
+                return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+            except Exception:
+                pass
+    # 2) Try credentials file
     if os.path.exists(client_config_path):
         return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri)
-    raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON oder lege credentials.json ab.")
+    # 3) Fallback to individual ID/SECRET
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    if client_id and client_secret:
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
+            }
+        }
+        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+    raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON (als reines JSON ohne zusätzliche Anführungszeichen), oder lege credentials.json ab, oder setze GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.")
 
 # 📬 E-Mail Auth über Environment (Fallback)
 def load_credentials_from_env():
