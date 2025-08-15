@@ -361,6 +361,83 @@ def logout():
     session.pop("user", None)
     return redirect("/")
 
+def _mask(value: str, show: int = 6) -> str:
+    if not value:
+        return ""
+    if len(value) <= show:
+        return value
+    return value[:show] + "…"
+
+@app.route("/debug/oauth")
+def debug_oauth():
+    if "user" not in session:
+        return redirect("/")
+    redirect_uri = url_for('gmail_callback', _external=True)
+    info = {"redirect_uri": redirect_uri}
+
+    # Try env JSON
+    src = None
+    raw = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    if raw:
+        txt = raw.strip()
+        try:
+            cfg = json.loads(txt)
+            src = "env_json"
+        except Exception:
+            try:
+                if (txt.startswith('"') and txt.endswith('"')) or (txt.startswith("'") and txt.endswith("'")):
+                    txt = txt[1:-1]
+                txt = txt.replace('\\"', '"')
+                cfg = json.loads(txt)
+                src = "env_json_unquoted"
+            except Exception:
+                cfg = None
+        if cfg:
+            web = cfg.get('web', {})
+            info.update({
+                "source": src,
+                "client_id": _mask(web.get('client_id', '')),
+                "has_client_secret": bool(web.get('client_secret')),
+                "authorized_redirect_uris": web.get('redirect_uris', [])
+            })
+            return jsonify(info)
+
+    # Try file
+    path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                cfg = json.load(f)
+            web = cfg.get('web', {})
+            info.update({
+                "source": f"file:{path}",
+                "client_id": _mask(web.get('client_id', '')),
+                "has_client_secret": bool(web.get('client_secret')),
+                "authorized_redirect_uris": web.get('redirect_uris', [])
+            })
+            return jsonify(info)
+        except Exception as e:
+            info.update({"source": f"file:{path}", "error": str(e)})
+            return jsonify(info), 200
+
+    # Fallback to id/secret
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    if client_id and client_secret:
+        info.update({
+            "source": "env_id_secret",
+            "client_id": _mask(client_id),
+            "has_client_secret": True,
+            "authorized_redirect_uris": ["(configured in Google Cloud console)"]
+        })
+        return jsonify(info)
+
+    info.update({
+        "source": "none",
+        "error": "No Google OAuth config found"
+    })
+    return jsonify(info), 200
+
 # ▶️ Nur lokal öffnen
 if __name__ == "__main__":
     import webbrowser, threading
