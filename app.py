@@ -51,22 +51,27 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 def build_google_flow(redirect_uri: str) -> Flow:
     client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
     client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
-    # 1) Try JSON from env (robust to accidental extra quotes)
+    # 1) Try JSON from env (robust to accidental extra quotes and double-encoded JSON)
     if client_config_json:
-        raw = client_config_json.strip()
-        try:
-            client_config = json.loads(raw)
-            return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-        except Exception:
+        def normalize_json_text(t: str) -> str:
+            s = (t or '').strip()
+            for _ in range(2):
+                if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                    s = s[1:-1]
+            s = s.replace('\\"', '"')
+            return s
+        txt = normalize_json_text(client_config_json)
+        for _ in range(3):
             try:
-                # try stripping surrounding quotes and unescaping common patterns
-                if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
-                    raw = raw[1:-1]
-                raw = raw.replace('\\"', '"')
-                client_config = json.loads(raw)
-                return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+                maybe = json.loads(txt)
+                if isinstance(maybe, dict):
+                    return Flow.from_client_config(maybe, scopes=SCOPES, redirect_uri=redirect_uri)
+                if isinstance(maybe, str):
+                    txt = normalize_json_text(maybe)
+                    continue
+                break
             except Exception:
-                pass
+                break
     # 2) Try credentials file
     if os.path.exists(client_config_path):
         return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri)
@@ -114,12 +119,13 @@ def gmail_connect():
         redirect_uri = url_for('gmail_callback', _external=True)
         flow = build_google_flow(redirect_uri)
         authorization_url, state = flow.authorization_url(
-            access_type='offline', include_granted_scopes='true', prompt='consent'
+            access_type='offline', include_granted_scopes='true', prompt='consent',
+            redirect_uri=redirect_uri
         )
         session['oauth_state'] = state
         return redirect(authorization_url)
     except Exception as e:
-        return f"Google OAuth Fehler: {str(e)}", 400
+        return f"Google OAuth Fehler ({url_for('gmail_callback', _external=True)}): {str(e)}", 400
 
 # 📬 Gmail OAuth callback
 @app.route('/gmail/callback')
