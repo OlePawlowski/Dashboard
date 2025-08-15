@@ -119,8 +119,7 @@ def gmail_connect():
         redirect_uri = url_for('gmail_callback', _external=True)
         flow = build_google_flow(redirect_uri)
         authorization_url, state = flow.authorization_url(
-            access_type='offline', include_granted_scopes='true', prompt='consent',
-            redirect_uri=redirect_uri
+            access_type='offline', include_granted_scopes='true', prompt='consent'
         )
         session['oauth_state'] = state
         return redirect(authorization_url)
