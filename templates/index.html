@@ -36,10 +36,6 @@
       <div class="logo">
         <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo">
       </div>
-      <div class="profile">
-        <img src="https://helpcare.de/wp-content/uploads/2025/08/2025-07-17_HelpCare-Gruppenfoto_027_lores.jpeg" alt="Profil" />
-        <span>{{ username }}</span>
-      </div>
       <ul class="nav">
         <li class="active"><i class="fas fa-home"></i> Dashboard</li>
         <li><i class="fas fa-calendar-alt"></i><a style="cursor: pointer; all: unset;" href="https://calendar.google.com/calendar/u/0/r"> Kalendar</a></li>
@@ -53,7 +49,6 @@
         <h1>Dashboard</h1>
         <div style="text-align: right;">
           <h1 class="date-gradient">{{ aktuelles_datum }}</h1>
-          <p id="liveClock" class="muted"></p>
         </div>
       </div>
 
@@ -176,25 +171,7 @@
         };
     </script>
 
-  <!-- Uhrzeit -->
-  <script>
-    function updateClock() {
-      const now = new Date();
-      const options = {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      };
-      const formatted = now.toLocaleString('de-DE', options).replace(',', ' –');
-      document.getElementById("liveClock").textContent = formatted;
-    }
-    updateClock();
-    setInterval(updateClock, 1000);
-  </script>
+
 
   <!-- Einsätze laden -->
  <script>

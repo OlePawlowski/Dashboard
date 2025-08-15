@@ -47,6 +47,17 @@ for i in range(1, 4):
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
+# 📬 Google OAuth Flow Builder (env or credentials.json fallback)
+def build_google_flow(redirect_uri: str) -> Flow:
+    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
+    client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
+    if client_config_json:
+        client_config = json.loads(client_config_json)
+        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
+    if os.path.exists(client_config_path):
+        return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri)
+    raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON oder lege credentials.json ab.")
+
 # 📬 E-Mail Auth über Environment (Fallback)
 def load_credentials_from_env():
     token_str = os.getenv("TOKEN_JSON")
@@ -71,36 +82,40 @@ def load_user_gmail_credentials(username: str):
 def gmail_connect():
     if "user" not in session:
         return redirect("/")
-    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
-    if not client_config_json:
-        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
-    client_config = json.loads(client_config_json)
-    redirect_uri = url_for('gmail_callback', _external=True)
-    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-    authorization_url, state = flow.authorization_url(
-        access_type='offline', include_granted_scopes='true', prompt='consent'
-    )
-    session['oauth_state'] = state
-    return redirect(authorization_url)
+    try:
+        redirect_uri = url_for('gmail_callback', _external=True)
+        flow = build_google_flow(redirect_uri)
+        authorization_url, state = flow.authorization_url(
+            access_type='offline', include_granted_scopes='true', prompt='consent'
+        )
+        session['oauth_state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        return f"Google OAuth Fehler: {str(e)}", 400
 
 # 📬 Gmail OAuth callback
 @app.route('/gmail/callback')
 def gmail_callback():
     if "user" not in session:
         return redirect("/")
-    client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
-    if not client_config_json:
-        return "Fehlende GOOGLE_CLIENT_CONFIG_JSON in .env", 500
-    client_config = json.loads(client_config_json)
+    # optional: validate state
+    expected_state = session.get('oauth_state')
+    incoming_state = request.args.get('state')
+    if expected_state and incoming_state and expected_state != incoming_state:
+        return "Ungültiger OAuth-Status (state mismatch)", 400
     redirect_uri = url_for('gmail_callback', _external=True)
-    flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri)
-    flow.fetch_token(authorization_response=request.url)
+    try:
+        flow = build_google_flow(redirect_uri)
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        return f"Google OAuth Fehler: {str(e)}", 400
     creds: Credentials = flow.credentials
     token_json = creds.to_json()
 
     entry = GmailCredential(username=session.get('user'), token_json=token_json)
     db.session.add(entry)
     db.session.commit()
+    session.pop('oauth_state', None)
     return redirect('/dashboard')
 
 # 📥 Anfrage empfangen (extern)
