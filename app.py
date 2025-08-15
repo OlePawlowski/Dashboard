@@ -38,10 +38,12 @@ with app.app_context():
     db.create_all()
 
 # 👥 Benutzer (Session-basierter Zugang für aktuelles Template)
-USERS = {
-    os.getenv("USER_1_NAME"): os.getenv("USER_1_PASS"),
-    os.getenv("USER_2_NAME"): os.getenv("USER_2_PASS")
-}
+USERS = {}
+for i in range(1, 4):
+    name = os.getenv(f"USER_{i}_NAME")
+    pw = os.getenv(f"USER_{i}_PASS")
+    if name and pw:
+        USERS[name] = pw
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -150,7 +152,8 @@ def dashboard():
     if "user" not in session:
         return redirect("/")
     aktuelles_datum = datetime.datetime.now().strftime('%A, %d. %B %Y')
-    return render_template("index.html", aktuelles_datum=aktuelles_datum)
+    username = session.get("user")
+    return render_template("index.html", aktuelles_datum=aktuelles_datum, username=username)
 
 # 📧 Gmail API
 @app.route("/api/emails")
@@ -159,7 +162,9 @@ def get_emails():
         return jsonify({"error": "Nicht eingeloggt"}), 401
 
     try:
-        creds = load_user_gmail_credentials(session['user']) or load_credentials_from_env()
+        creds = load_user_gmail_credentials(session['user'])
+        if not creds:
+            return jsonify({"error": "Kein Gmail-Konto verbunden. Bitte zuerst verbinden."}), 400
         service = build('gmail', 'v1', credentials=creds)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])

@@ -2,62 +2,87 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <title>Login – Gmail Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login – Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    body {
-      background-color: #1e1e2f;
-      color: #fff;
-      font-family: "Segoe UI", sans-serif;
+    .login-container {
+      min-height: 100vh;
       display: flex;
-      justify-content: center;
       align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .login-box {
-      background-color: #2f2f48;
+      justify-content: center;
       padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      width: 300px;
     }
-
-    input {
-      width: 100%;
-      padding: 0.75rem;
-      margin-bottom: 1rem;
-      border: none;
-      border-radius: 6px;
-      background-color: #444;
-      color: white;
+    .login-card {
+      width: 360px;
+      padding: 1.5rem;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.6);
     }
-
-    button {
-      width: 100%;
-      padding: 0.75rem;
-      background-color: #4fc3f7;
-      border: none;
-      border-radius: 6px;
-      color: black;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    h2 {
+    .login-card h2 {
       text-align: center;
       margin-bottom: 1rem;
+      font-weight: 700;
+    }
+    .login-card form input {
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 0.8rem;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.85);
+      color: #2c2c2c;
+    }
+    .login-card form button {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 10px;
+      background-color: #f78060;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .login-logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+    }
+    .login-logo img {
+      width: 120px;
     }
   </style>
 </head>
 <body>
-  <div class="login-box">
-    <h2>Login</h2>
-    <form style="overflow: hidden;" method="POST">
-      <input type="text" name="username" placeholder="Benutzername" required />
-      <input type="password" name="password" placeholder="Passwort" required />
-      <button type="submit">Anmelden</button>
-    </form>
+  <svg class="bcg" preserveAspectRatio="xMidYMid slice" viewBox="10 10 80 80">
+    <defs>
+      <style>
+        @keyframes rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .out-top { animation: rotate 20s linear infinite; transform-origin: 13px 25px; }
+        .in-top { animation: rotate 10s linear infinite; transform-origin: 13px 25px; }
+        .out-bottom { animation: rotate 25s linear infinite; transform-origin: 84px 93px; }
+        .in-bottom { animation: rotate 15s linear infinite; transform-origin: 84px 93px; }
+      </style>
+    </defs>
+    <path fill="#f780600f" class="out-top" d="M37-5C25.1-14.7,5.7-19.1-9.2-10-28.5,1.8-32.7,31.1-19.8,49c15.5,21.5,52.6,22,67.2,2.3C59.4,35,53.7,8.5,37-5Z"/>
+    <path fill="#f780600f" class="in-top" d="M20.6,4.1C11.6,1.5-1.9,2.5-8,11.2-16.3,23.1-8.2,45.6,7.4,50S42.1,38.9,41,24.5C40.2,14.1,29.4,6.6,20.6,4.1Z"/>
+    <path fill="#f780600f" class="out-bottom" d="M105.9,48.6c-12.4-8.2-29.3-4.8-39.4,0.8-23.4,12.8-37.7,51.9-19.1,74.1s63.9,15.3,76-5.6c7.6-13.3,1.8-31.1-2.3-43.8C117.6,63.3,114.7,54.3,105.9,48.6Z"/>
+    <path fill="#f780600f" class="in-bottom" d="M102,67.1c-9.6-6.1-22-3.1-29.5,2-15.4,10.7-19.6,37.5-7.6,47.8s35.9,3.9,44.5-12.5C115.5,92.6,113.9,74.6,102,67.1Z"/>
+  </svg>
+
+  <div class="login-container">
+    <div class="login-card glass">
+      <div class="login-logo">
+        <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo">
+      </div>
+      <h2>Anmeldung</h2>
+      <form method="POST">
+        <input type="text" name="username" placeholder="Benutzername" required />
+        <input type="password" name="password" placeholder="Passwort" required />
+        <button type="submit">Anmelden</button>
+      </form>
+    </div>
   </div>
 </body>
 </html>
