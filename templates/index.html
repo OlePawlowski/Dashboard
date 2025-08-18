@@ -72,43 +72,33 @@
           <div id="whatsapp-messages">Lade Nachrichten...</div>
         </div>
 
-        <div class="top-performance glass">
-            <h3>Notizen</h3>
-            <textarea id="notizenEditor" placeholder="Schreibe dir eine Notiz..."></textarea>
-            <button id="saveNote">Speichern</button>
+        <!-- REPLACED: Personal notes -> Teamnotizen UI moved here -->
+        <div class="team-notes glass">
+          <div class="team-notes-header">
+            <h3>Teamnotizen</h3>
+            <form id="teamNoteForm" class="team-note-form">
+              <input type="text" name="content" placeholder="Neue Notiz hinzufügen..." required />
+              <button type="submit">Speichern</button>
+            </form>
+          </div>
+          <div id="teamNotesList" class="team-notes-list">
+            <!-- Notizen -->
+          </div>
         </div>
 
       </section>
 
-      <!-- Team Sektion -->
+      <!-- Team Sektion (form to add members removed as requested) -->
       <section class="team glass">
         <div class="team-header">
           <h3>Team</h3>
-          <form id="addUserForm" class="add-user-form">
-            <input type="text" name="name" placeholder="Name" required />
-            <input type="email" name="email" placeholder="E-Mail" required />
-            <input type="text" name="role" placeholder="Rolle (optional)" />
-            <button type="submit">Hinzufügen</button>
-          </form>
         </div>
         <div id="teamGrid" class="team-grid">
           <!-- Mitarbeiterkarten -->
         </div>
       </section>
 
-      <!-- Teamnotizen Sektion -->
-      <section class="team-notes glass">
-        <div class="team-notes-header">
-          <h3>Teamnotizen</h3>
-          <form id="teamNoteForm" class="team-note-form">
-            <input type="text" name="content" placeholder="Neue Notiz hinzufügen..." required />
-            <button type="submit">Speichern</button>
-          </form>
-        </div>
-        <div id="teamNotesList" class="team-notes-list">
-          <!-- Notizen -->
-        </div>
-      </section>
+      <!-- REMOVED: Separate Teamnotizen section (now shown above) -->
 
       <!-- Gmail Bereich -->
       <section class="working-format glass">
@@ -155,23 +145,7 @@
   setInterval(ladeNachrichten, 30000); // alle 30s neu laden
 </script>
 
-
- 
-  <!-- Notepad -->
-    <script>
-        const editor = document.getElementById("notizenEditor");
-        const button = document.getElementById("saveNote");
-
-        // Notiz laden
-        editor.value = localStorage.getItem("notiz") || "";
-
-        button.onclick = () => {
-            localStorage.setItem("notiz", editor.value);
-            alert("✅ Notiz gespeichert!");
-        };
-    </script>
-
-
+  <!-- REMOVED: Personal Notepad script -->
 
   <!-- Einsätze laden -->
  <script>
@@ -199,11 +173,9 @@
   loadEinsaetze();
 </script>
 
-
-  <!-- Team laden und hinzufügen -->
+  <!-- Team laden (add-by-email form removed; JS adjusted) -->
   <script>
     const teamGrid = document.getElementById('teamGrid');
-    const addUserForm = document.getElementById('addUserForm');
 
     function renderTeam(items) {
       if (!items.length) {
@@ -232,28 +204,10 @@
       }
     }
 
-    addUserForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(addUserForm);
-      const payload = Object.fromEntries(formData.entries());
-      try {
-        const res = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('Fehler beim Speichern');
-        addUserForm.reset();
-        await loadTeam();
-      } catch (e) {
-        alert('❌ ' + e.message);
-      }
-    });
-
     loadTeam();
   </script>
 
-  <!-- Teamnotizen laden/hinzufügen/löschen -->
+  <!-- Teamnotizen laden/hinzufügen/löschen (unchanged functionality) -->
   <script>
     const teamNotesList = document.getElementById('teamNotesList');
     const teamNoteForm = document.getElementById('teamNoteForm');
