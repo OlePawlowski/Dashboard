@@ -88,16 +88,6 @@
 
       </section>
 
-      <!-- Team Sektion ohne Formular -->
-      <section class="team glass">
-        <div class="team-header">
-          <h3>Team</h3>
-        </div>
-        <div id="teamGrid" class="team-grid">
-          <!-- Mitarbeiterkarten -->
-        </div>
-      </section>
-
       <!-- Gmail Bereich -->
       <section class="working-format glass">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
@@ -158,32 +148,60 @@
   setInterval(ladeNachrichten, 10000); // alle 30s neu laden
 </script>
 
-  <!-- Einsätze laden -->
  <script>
+  const einsatzList = document.getElementById("einsatzList");
+  let einsaetzeController = null; // verhindert Überschneidungen
+
   async function loadEinsaetze() {
-    const res = await fetch("/api/get-anfragen");
-    const data = await res.json();
-    const list = document.getElementById("einsatzList");
-    list.innerHTML = "";
+    // laufende Anfrage abbrechen, falls noch offen
+    if (einsaetzeController) einsaetzeController.abort();
+    einsaetzeController = new AbortController();
 
-    data.forEach(item => {
-      const card = document.createElement("div");
-      card.className = "meeting-card glass";
-      card.innerHTML = `
-        <strong>${item.name}</strong><br>
-        <small>📞 ${item.tel}</small>
-      `;
-
-      card.addEventListener("click", () => {
-        window.location.href = "https://app.maidplus.de/client";
+    try {
+      const res = await fetch("/api/get-anfragen", {
+        cache: "no-store",           // Browser-Cache umgehen
+        signal: einsaetzeController.signal,
+        headers: { "Accept": "application/json" }
       });
 
-      list.appendChild(card);
-    });
-  }
-  loadEinsaetze();
-</script>
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
 
+      // Render
+      einsatzList.innerHTML = (data && data.length)
+        ? data.map(item => `
+            <div class="meeting-card glass" role="button" tabindex="0">
+              <strong>${item.name}</strong><br>
+              <small>📞 ${item.tel}</small>
+            </div>
+          `).join("")
+        : "<p>Keine Anfragen vorhanden.</p>";
+
+      // Click & Keyboard (delegiert, funktioniert auch nach Re-Render)
+      einsatzList.querySelectorAll(".meeting-card").forEach(card => {
+        card.addEventListener("click", () => {
+          window.location.href = "https://app.maidplus.de/client";
+        });
+        card.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            window.location.href = "https://app.maidplus.de/client";
+          }
+        });
+      });
+
+    } catch (err) {
+      if (err.name === "AbortError") return; // durch neuen Poll ersetzt
+      console.error(err);
+      einsatzList.innerHTML = "<p>❌ Fehler beim Laden der Anfragen.</p>";
+    }
+  }
+
+  // Initial + Polling z.B. alle 15s
+  loadEinsaetze();
+  setInterval(loadEinsaetze, 15000);
+</script>
+  
   <!-- Team laden -->
   <script>
     const teamGrid = document.getElementById('teamGrid');
