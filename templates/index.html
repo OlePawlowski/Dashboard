@@ -111,22 +111,37 @@
     </main>
   </div>
 
-  <!-- Whatsapp -->
+ <!-- Whatsapp -->
 <script>
-  async function ladeNachrichten() {
-    const box = document.getElementById("whatsapp-messages");
+  const CHATWOOT_URL = "https://app.chatwoot.com/app/accounts/130586/dashboard";
+  const whatsappBox = document.getElementById("whatsapp-messages");
 
+  // Delegiertes Click/Keyboard-Handling (einmalig binden, funktioniert auch nach Re-Render)
+  whatsappBox.addEventListener("click", (e) => {
+    const card = e.target.closest(".message");
+    if (!card) return;
+    window.location.href = CHATWOOT_URL;
+  });
+  whatsappBox.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest(".message")) {
+      e.preventDefault();
+      window.location.href = CHATWOOT_URL;
+    }
+  });
+
+  async function ladeNachrichten() {
     try {
       const res = await fetch("/api/whatsapp-messages");
       const daten = await res.json();
 
       if (!daten.length) {
-        box.innerHTML = "<p>Keine neuen Nachrichten.</p>";
+        whatsappBox.innerHTML = "<p>Keine neuen Nachrichten.</p>";
         return;
       }
 
-      box.innerHTML = daten.map(n => `
-        <div class="message glass">
+      // Karten rendern – klickbar & tastaturbedienbar
+      whatsappBox.innerHTML = daten.map(n => `
+        <div class="message glass" role="button" tabindex="0" style="cursor:pointer;">
           <strong>${n.contact}</strong><br>
           ${n.text}<br>
           <small>${new Date(n.time).toLocaleString("de-DE")}</small>
@@ -134,13 +149,13 @@
       `).join("");
 
     } catch (err) {
-      box.innerHTML = "<p>Fehler beim Laden der Nachrichten.</p>";
+      whatsappBox.innerHTML = "<p>Fehler beim Laden der Nachrichten.</p>";
       console.error(err);
     }
   }
 
   ladeNachrichten();
-  setInterval(ladeNachrichten, 30000); // alle 30s neu laden
+  setInterval(ladeNachrichten, 10000); // alle 30s neu laden
 </script>
 
   <!-- Einsätze laden -->
