@@ -72,7 +72,7 @@
           <div id="whatsapp-messages">Lade Nachrichten...</div>
         </div>
 
-        <!-- REPLACED: Personal notes -> Teamnotizen UI moved here -->
+        <!-- Teamnotizen statt persönliche Notizen -->
         <div class="team-notes glass">
           <div class="team-notes-header">
             <h3>Teamnotizen</h3>
@@ -88,7 +88,7 @@
 
       </section>
 
-      <!-- Team Sektion (form to add members removed as requested) -->
+      <!-- Team Sektion ohne Formular -->
       <section class="team glass">
         <div class="team-header">
           <h3>Team</h3>
@@ -97,8 +97,6 @@
           <!-- Mitarbeiterkarten -->
         </div>
       </section>
-
-      <!-- REMOVED: Separate Teamnotizen section (now shown above) -->
 
       <!-- Gmail Bereich -->
       <section class="working-format glass">
@@ -145,8 +143,6 @@
   setInterval(ladeNachrichten, 30000); // alle 30s neu laden
 </script>
 
-  <!-- REMOVED: Personal Notepad script -->
-
   <!-- Einsätze laden -->
  <script>
   async function loadEinsaetze() {
@@ -173,7 +169,7 @@
   loadEinsaetze();
 </script>
 
-  <!-- Team laden (add-by-email form removed; JS adjusted) -->
+  <!-- Team laden -->
   <script>
     const teamGrid = document.getElementById('teamGrid');
 
@@ -207,7 +203,7 @@
     loadTeam();
   </script>
 
-  <!-- Teamnotizen laden/hinzufügen/löschen (unchanged functionality) -->
+  <!-- Teamnotizen laden/hinzufügen/löschen mit Auto-Reload -->
   <script>
     const teamNotesList = document.getElementById('teamNotesList');
     const teamNoteForm = document.getElementById('teamNoteForm');
@@ -266,74 +262,14 @@
       }
     });
 
+    // Erste Ladung
     loadNotes();
+
+    // 🔄 Auto-Reload jede 1 Sekunde
+    setInterval(loadNotes, 1000);
   </script>
 
   <!-- Gmail laden -->
-  <script>
-  const teamNotesList = document.getElementById('teamNotesList');
-  const teamNoteForm = document.getElementById('teamNoteForm');
-
-  function renderNotes(items) {
-    if (!items.length) {
-      teamNotesList.innerHTML = '<p>Keine Teamnotizen vorhanden.</p>';
-      return;
-    }
-    teamNotesList.innerHTML = items.map(n => `
-      <div class="team-note-item glass">
-        <div class="team-note-content">${n.content}</div>
-        <div class="team-note-meta">${n.author || ''} • ${new Date(n.created_at).toLocaleString('de-DE')}</div>
-        <button class="team-note-delete" data-id="${n.id}">Löschen</button>
-      </div>
-    `).join('');
-    document.querySelectorAll('.team-note-delete').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        try {
-          const res = await fetch(`/api/team-notes/${id}`, { method: 'DELETE' });
-          if (!res.ok) throw new Error('Fehler beim Löschen');
-          await loadNotes();
-        } catch (err) {
-          alert('❌ ' + err.message);
-        }
-      });
-    });
-  }
-
-  async function loadNotes() {
-    try {
-      const res = await fetch('/api/team-notes');
-      const items = await res.json();
-      renderNotes(items);
-    } catch (e) {
-      teamNotesList.innerHTML = '<p>Fehler beim Laden der Notizen.</p>';
-    }
-  }
-
-  teamNoteForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(teamNoteForm);
-    const payload = Object.fromEntries(formData.entries());
-    try {
-      const res = await fetch('/api/team-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('Fehler beim Speichern');
-      teamNoteForm.reset();
-      await loadNotes();
-    } catch (e) {
-      alert('❌ ' + e.message);
-    }
-  });
-
-  loadNotes();
-
-  // 🔄 Automatisches Reload alle 10 Sekunden
-  setInterval(loadNotes, 10000);
-</script>
-
   <script>
     fetch("/api/emails")
       .then(res => res.json())
