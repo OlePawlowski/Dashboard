@@ -3,15 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a2e0f2ac1f.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
+  <a class="skip-link" href="#main">Zum Inhalt springen</a>
+
   <!-- SVG Hintergrund -->
-  <svg class="bcg" preserveAspectRatio="xMidYMid slice" viewBox="10 10 80 80">
+  <svg class="bcg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid slice" viewBox="10 10 80 80">
     <defs>
       <style>
         @keyframes rotate {
@@ -32,9 +37,9 @@
 
   <div class="dashboard-layout">
     <!-- Sidebar -->
-    <aside class="sidebar glass">
+    <aside class="sidebar glass" role="navigation" aria-label="Hauptnavigation">
       <div class="logo">
-        <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo">
+        <img src="https://helpcare.de/wp-content/uploads/2025/07/path1.png" alt="Logo" loading="lazy">
       </div>
       <ul class="nav">
         <li class="active"><i class="fas fa-home"></i> Dashboard</li>
@@ -44,7 +49,7 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <main id="main" class="main-content" role="main">
       <div class="topbar glass">
         <h1>Dashboard</h1>
         <div style="text-align: right;">
@@ -60,22 +65,22 @@
       </section>
       
       <section class="middle-row">
-        <div class="einsaetze glass">
-          <h3>Anfragen</h3>
+        <div class="einsaetze glass" role="region" aria-labelledby="anfragen-heading">
+          <h3 id="anfragen-heading">Anfragen</h3>
           <div id="einsatzList">
             <p>Lade Anfragen...</p>
           </div>
         </div>
 
-        <div class="kpi-score glass" id="whatsapp-box">
-          <h3>Whatsapp Nachrichten</h3>
+        <div class="kpi-score glass" id="whatsapp-box" role="region" aria-labelledby="whatsapp-heading">
+          <h3 id="whatsapp-heading">Whatsapp Nachrichten</h3>
           <div id="whatsapp-messages">Lade Nachrichten...</div>
         </div>
 
         <!-- Teamnotizen statt persönliche Notizen -->
-        <div class="team-notes glass">
+        <div class="team-notes glass" role="region" aria-labelledby="team-notes-heading">
           <div class="team-notes-header">
-            <h3>Teamnotizen</h3>
+            <h3 id="team-notes-heading">Teamnotizen</h3>
             <form id="teamNoteForm" class="team-note-form">
               <input type="text" name="content" placeholder="Neue Notiz hinzufügen..." required />
               <button type="submit">Speichern</button>
@@ -88,10 +93,18 @@
 
       </section>
 
+      <!-- Team Bereich (ergänzt) -->
+      <section class="team glass" role="region" aria-labelledby="team-heading">
+        <div class="team-header">
+          <h3 id="team-heading">Team</h3>
+        </div>
+        <div id="teamGrid" class="team-grid"></div>
+      </section>
+
       <!-- Gmail Bereich -->
-      <section class="working-format glass">
+      <section class="working-format glass" role="region" aria-labelledby="gmail-heading">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-          <h3>Gmail</h3>
+          <h3 id="gmail-heading">Gmail</h3>
           <a href="/gmail/connect" class="btn-small">Gmail verbinden</a>
         </div>
         <ul id="email-list">
