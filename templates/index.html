@@ -57,32 +57,43 @@
       </div>
       
       <section class="middle-row">
-        <div class="einsaetze">
-          <h3>Anfragen</h3>
-          <div id="einsatzList">
+        <div class="card einsaetze">
+          <div class="card-header">
+            <h3>Anfragen</h3>
+          </div>
+          <div class="card-body" id="einsatzList">
             <p>Lade Anfragen...</p>
           </div>
         </div>
 
-        <div class="kpi-score" id="whatsapp-box">
-          <h3>Whatsapp Nachrichten</h3>
-          <div id="whatsapp-messages">Lade Nachrichten...</div>
+        <div class="card kpi-score" id="whatsapp-box">
+          <div class="card-header">
+            <h3>Whatsapp Nachrichten</h3>
+          </div>
+          <div class="card-body" id="whatsapp-messages">Lade Nachrichten...</div>
         </div>
 
-        <div class="top-performance">
+        <div class="card top-performance">
+          <div class="card-header">
             <h3>Notizen</h3>
+          </div>
+          <div class="card-body">
             <textarea id="notizenEditor" placeholder="Schreibe dir eine Notiz..."></textarea>
             <button id="saveNote">Speichern</button>
+          </div>
         </div>
-
       </section>
 
       <!-- Gmail Bereich -->
-      <section class="working-format">
-        <h3>Gmail</h3>
-        <ul id="email-list">
-          <li>Lade E-Mails...</li>
-        </ul>
+      <section class="working-format card">
+        <div class="card-header">
+          <h3>Gmail</h3>
+        </div>
+        <div class="card-body">
+          <ul id="email-list">
+            <li>Lade E-Mails...</li>
+          </ul>
+        </div>
       </section>
     </main>
   </div>
