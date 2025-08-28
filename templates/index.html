@@ -90,9 +90,29 @@
           <h3>Gmail</h3>
         </div>
         <div class="card-body">
-          <ul id="email-list">
-            <li>Lade E-Mails...</li>
-          </ul>
+          <div class="gmail-grid">
+            <div class="card gmail-box">
+              <div class="card-header"><h3>Gmail 1</h3><span class="status" id="gmail-status-1">Verbinde...</span></div>
+              <div class="card-body">
+                <ul id="email-list-1"><li>Lade...</li></ul>
+                <button class="gmail-connect" data-id="1" id="gmail-connect-1" style="display:none">Verbinden</button>
+              </div>
+            </div>
+            <div class="card gmail-box">
+              <div class="card-header"><h3>Gmail 2</h3><span class="status" id="gmail-status-2">Verbinde...</span></div>
+              <div class="card-body">
+                <ul id="email-list-2"><li>Lade...</li></ul>
+                <button class="gmail-connect" data-id="2" id="gmail-connect-2" style="display:none">Verbinden</button>
+              </div>
+            </div>
+            <div class="card gmail-box">
+              <div class="card-header"><h3>Gmail 3</h3><span class="status" id="gmail-status-3">Verbinde...</span></div>
+              <div class="card-body">
+                <ul id="email-list-3"><li>Lade...</li></ul>
+                <button class="gmail-connect" data-id="3" id="gmail-connect-3" style="display:none">Verbinden</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -195,26 +215,40 @@
 </script>
 
 
-  <!-- Gmail laden -->
+  <!-- Gmail laden (3 Accounts) -->
   <script>
-    fetch("/api/emails")
-      .then(res => res.json())
-      .then(data => {
-        const list = document.getElementById("email-list");
-        list.innerHTML = "";
-        data.forEach(mail => {
+    async function loadGmailBox(id) {
+      const statusEl = document.getElementById(`gmail-status-${id}`);
+      const listEl = document.getElementById(`email-list-${id}`);
+      const connectBtn = document.getElementById(`gmail-connect-${id}`);
+      try {
+        const res = await fetch(`/api/emails/${id}`);
+        const data = await res.json();
+        if (!data.connected) {
+          statusEl.textContent = "Nicht verbunden";
+          listEl.innerHTML = "<li>Bitte verbinden</li>";
+          connectBtn.style.display = "inline-block";
+          connectBtn.onclick = () => alert(`Bitte TOKEN_JSON_${id} in der Umgebung setzen.`);
+          return;
+        }
+        statusEl.textContent = "Verbunden";
+        listEl.innerHTML = "";
+        data.emails.forEach(mail => {
           const li = document.createElement("li");
           const link = document.createElement("a");
-          link.href = "https://mail.google.com/mail/u/0/#inbox";
+          link.href = "https://mail.google.com/mail/#inbox";
           link.target = "_blank";
           link.innerHTML = `<strong>${mail.from}</strong><br>${mail.subject}<br><small>${mail.time}</small>`;
           li.appendChild(link);
-          list.appendChild(li);
+          listEl.appendChild(li);
         });
-      })
-      .catch(() => {
-        document.getElementById("email-list").innerHTML = "<li>❌ Fehler beim Laden</li>";
-      });
+      } catch (e) {
+        statusEl.textContent = "Fehler";
+        listEl.innerHTML = "<li>❌ Fehler beim Laden</li>";
+      }
+    }
+
+    [1,2,3].forEach(loadGmailBox);
   </script>
 </body>
 </html>

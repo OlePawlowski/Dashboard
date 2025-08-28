@@ -31,6 +31,18 @@ def load_credentials_from_env():
     token_data = json.loads(token_str)
     return Credentials.from_authorized_user_info(token_data, SCOPES)
 
+# 📬 Mehrere Gmail-Accounts via Environment (TOKEN_JSON_1..3)
+def load_credentials_by_id(account_id: int):
+    env_key = f"TOKEN_JSON_{account_id}"
+    token_str = os.getenv(env_key)
+    if not token_str:
+        return None
+    try:
+        token_data = json.loads(token_str)
+        return Credentials.from_authorized_user_info(token_data, SCOPES)
+    except Exception:
+        return None
+
 # 📥 Anfrage empfangen
 @app.route("/api/externe-anfrage", methods=["POST"])
 def externe_anfrage():
@@ -124,6 +136,49 @@ def get_emails():
         email_list.append(email_info)
 
     return jsonify(email_list)
+
+# 📧 Gmail API (Multi-Account)
+@app.route("/api/emails/<int:account_id>")
+def get_emails_account(account_id: int):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+
+    creds = load_credentials_by_id(account_id)
+    if creds is None:
+        return jsonify({
+            "connected": False,
+            "emails": []
+        })
+
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+        results = service.users().messages().list(userId='me', maxResults=5).execute()
+        messages = results.get('messages', [])
+    except Exception as e:
+        return jsonify({
+            "connected": False,
+            "error": f"Fehler bei Gmail API: {str(e)}"
+        })
+
+    email_list = []
+    for msg in messages:
+        try:
+            msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
+            headers = msg_data['payload']['headers']
+            email_info = {
+                "from": next((h['value'] for h in headers if h['name'] == 'From'), 'Unbekannt'),
+                "subject": next((h['value'] for h in headers if h['name'] == 'Subject'), '(Kein Betreff)'),
+                "time": datetime.datetime.fromtimestamp(
+                    int(msg_data['internalDate']) / 1000).strftime('%d.%m.%Y – %H:%M')
+            }
+            email_list.append(email_info)
+        except Exception:
+            continue
+
+    return jsonify({
+        "connected": True,
+        "emails": email_list
+    })
 
 # 📲 Webhook von Chatwoot empfangen
 @app.route("/webhook/chatwoot", methods=["POST"])

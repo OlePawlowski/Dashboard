@@ -286,6 +286,31 @@ body {
   box-shadow: var(--shadow);
 }
 
+.gmail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.gmail-box .card-body {
+  max-height: 260px;
+}
+
+.gmail-connect {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gmail-connect:hover {
+  background-color: #e46a4e;
+}
+
 .working-format ul {
   list-style: none;
   margin-top: 1rem;
