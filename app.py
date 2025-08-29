@@ -116,6 +116,10 @@ def gmail_connect():
     if "user" not in session:
         return redirect("/")
     try:
+        # Optional: which slot (1..3) is being connected from the UI
+        slot = request.args.get('slot')
+        if slot in {"1", "2", "3"}:
+            session['gmail_connect_slot'] = slot
         redirect_uri = url_for('gmail_callback', _external=True)
         flow = build_google_flow(redirect_uri)
         # Validate client type and redirect URI allowlist to prevent Google "invalid request"
@@ -231,11 +235,30 @@ def dashboard():
 def get_emails():
     if "user" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 401
+    # Support 3 slots by selecting the Nth most recent credential for the user
+    # slot=1 -> most recent, slot=2 -> second, slot=3 -> third
+    slot_param = request.args.get('slot', '1')
+    try:
+        slot_index = int(slot_param)
+    except Exception:
+        slot_index = 1
+    if slot_index < 1:
+        slot_index = 1
+    if slot_index > 3:
+        slot_index = 3
 
     try:
-        creds = load_user_gmail_credentials(session['user'])
-        if not creds:
-            return jsonify({"error": "Kein Gmail-Konto verbunden. Bitte zuerst verbinden."}), 400
+        cred_row = (
+            GmailCredential.query
+            .filter_by(username=session['user'])
+            .order_by(GmailCredential.id.desc())
+            .offset(slot_index - 1)
+            .first()
+        )
+        if not cred_row:
+            return jsonify({"error": "Kein Gmail-Konto für diesen Slot verbunden. Bitte verbinden."}), 400
+        token_data = json.loads(cred_row.token_json)
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
         service = build('gmail', 'v1', credentials=creds)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])
@@ -379,6 +402,10 @@ def delete_team_note(note_id: int):
     note = TeamNote.query.get(note_id)
     if not note:
         return jsonify({"error": "Notiz nicht gefunden"}), 404
+    # Only the author may delete their own notes
+    current_user = session.get('user')
+    if not current_user or (note.author and note.author != current_user):
+        return jsonify({"error": "Keine Berechtigung zum Löschen dieser Notiz"}), 403
     db.session.delete(note)
     db.session.commit()
     return jsonify({"success": True})

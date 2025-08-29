@@ -13,6 +13,44 @@ body {
   color: #2c2c2c;
 }
 
+/* Dark mode */
+.dark body, body.dark {
+  background: linear-gradient(145deg, #0f1115, #1b1e24);
+  color: #e6e6e6;
+}
+
+.dark .sidebar, body.dark .sidebar,
+.dark .kpi-card, body.dark .kpi-card,
+.dark .kpi-score, body.dark .kpi-score,
+.dark .top-performance, body.dark .top-performance,
+.dark .team, body.dark .team,
+.dark .team-notes, body.dark .team-notes,
+.dark .working-format, body.dark .working-format,
+.dark .team-card, body.dark .team-card,
+.dark .gmail-pane, body.dark .gmail-pane {
+  background: rgba(20, 22, 28, 0.6);
+  color: #e6e6e6;
+}
+
+.dark .sidebar .nav li.active, body.dark .sidebar .nav li.active,
+.dark .sidebar .nav li:hover, body.dark .sidebar .nav li:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark .working-format a, body.dark .working-format a,
+.dark .working-format strong, body.dark .working-format strong {
+  color: #e6e6e6;
+}
+
+.dark .message, body.dark .message {
+  background: rgba(255,255,255,0.04);
+  color: #e6e6e6;
+}
+
+.dark .team-note-meta, body.dark .team-note-meta { color: #aaa; }
+.dark .team-card-role, body.dark .team-card-role { color: #bbb; }
+.dark .team-card-email, body.dark .team-card-email { color: #ccc; }
+
 /* SVG Hintergrund */
 .bcg {
   position: fixed;
@@ -158,6 +196,13 @@ body {
   border-radius: 12px;
 }
 
+/* Make key containers scrollable to prevent excessive height */
+#einsatzList { max-height: 360px; overflow-y: auto; }
+#whatsapp-box { display: flex; flex-direction: column; max-height: 420px; }
+#whatsapp-messages { overflow-y: auto; flex: 1; }
+.team-notes { max-height: 480px; display: flex; flex-direction: column; }
+.team-notes-list { overflow-y: auto; flex: 1; }
+
 /* Mittelblock */
 .middle-row {
   display: grid;
@@ -258,6 +303,39 @@ body {
 .working-format strong {
   color: #2c2c2c;
 }
+
+/* Gmail 3-pane layout */
+.gmail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.gmail-pane {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  max-height: 380px;
+}
+
+.gmail-pane-header {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.gmail-pane ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.gmail-pane li { margin-bottom: 0.6rem; }
 
 /* Team */
 .team {
@@ -422,6 +500,7 @@ body {
   .team-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+  .gmail-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {
