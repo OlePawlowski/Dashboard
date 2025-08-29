@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import html2pdf from "html2pdf.js";
-import angebotTemplateRaw from "../angebotstemplate.html?raw";
+import angebotTemplateRaw from "./angebotstemplate.html?raw";
 
 // ###############################################################
 // HelpCare Preisrechner – mit PDF-Button (ohne Backend)
