@@ -54,11 +54,9 @@
         </div>
       </div>
 
-      <!-- KPI Cards -->
+      <!-- KPI: only live Anfragen counter -->
       <section class="kpis">
-        <div class="kpi-card glass"><h4>Anfragen</h4><p>23</p></div>
-        <div class="kpi-card glass"><h4>Einsätze</h4><p>70</p></div>
-        <div class="kpi-card glass"><h4>Betreuungskräfte</h4><p>500</p></div>
+        <div class="kpi-card glass"><h4>Anfragen</h4><p id="anfragenCounter">0</p></div>
       </section>
       
       <section class="middle-row">
@@ -168,6 +166,7 @@
  <script>
   const einsatzList = document.getElementById("einsatzList");
   let einsaetzeController = null; // verhindert Überschneidungen
+  const anfragenCounter = document.getElementById('anfragenCounter');
 
   async function loadEinsaetze() {
     // laufende Anfrage abbrechen, falls noch offen
@@ -206,6 +205,11 @@
           }
         });
       });
+
+      // Update Anfragen counter
+      if (Array.isArray(data)) {
+        anfragenCounter.textContent = data.length;
+      }
 
     } catch (err) {
       if (err.name === "AbortError") return; // durch neuen Poll ersetzt

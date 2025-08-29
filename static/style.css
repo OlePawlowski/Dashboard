@@ -28,7 +28,7 @@ body {
 .dark .working-format, body.dark .working-format,
 .dark .team-card, body.dark .team-card,
 .dark .gmail-pane, body.dark .gmail-pane {
-  background: rgba(20, 22, 28, 0.6);
+  background: rgba(24, 27, 33, 0.72);
   color: #e6e6e6;
 }
 
@@ -50,6 +50,12 @@ body {
 .dark .team-note-meta, body.dark .team-note-meta { color: #aaa; }
 .dark .team-card-role, body.dark .team-card-role { color: #bbb; }
 .dark .team-card-email, body.dark .team-card-email { color: #ccc; }
+
+/* Dark mode: hover states, borders, svg tints */
+.dark .working-format li:hover, body.dark .working-format li:hover { background: rgba(255,255,255,0.08); }
+.dark .glass, body.dark .glass { border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.4); }
+.dark .btn-small, body.dark .btn-small { background: #f78060; color: #111; }
+.dark .bcg path, body.dark .bcg path { fill: rgba(247,128,96,0.06) !important; }
 
 /* SVG Hintergrund */
 .bcg {
@@ -196,11 +202,12 @@ body {
   border-radius: 12px;
 }
 
-/* Make key containers scrollable to prevent excessive height */
-#einsatzList { max-height: 360px; overflow-y: auto; }
-#whatsapp-box { display: flex; flex-direction: column; max-height: 420px; }
+/* Equal middle-row panels with scrollable interior */
+.middle-row > .glass { display: flex; flex-direction: column; height: var(--mid-panel-h, 460px); }
+#einsatzList { overflow-y: auto; flex: 1; }
+#whatsapp-box { display: flex; flex-direction: column; }
 #whatsapp-messages { overflow-y: auto; flex: 1; }
-.team-notes { max-height: 480px; display: flex; flex-direction: column; }
+.team-notes { display: flex; flex-direction: column; }
 .team-notes-list { overflow-y: auto; flex: 1; }
 
 /* Mittelblock */
