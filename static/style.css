@@ -28,7 +28,7 @@ body {
 .dark .working-format, body.dark .working-format,
 .dark .team-card, body.dark .team-card,
 .dark .gmail-pane, body.dark .gmail-pane {
-  background: rgba(24, 27, 33, 0.72);
+  background: linear-gradient(180deg, rgba(24,27,33,0.78), rgba(24,27,33,0.62));
   color: #e6e6e6;
 }
 
@@ -155,12 +155,13 @@ body {
 
 .kpi-card {
   flex: 1;
-  background: rgba(255, 255, 255, 0.5);
-  padding: 1.5rem;
-  border-radius: 16px;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.5));
+  padding: 1.25rem 1.5rem;
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
   text-align: center;
+  border: 1px solid rgba(255,255,255,0.28);
 }
 
 .kpi-card h4 {
@@ -169,8 +170,8 @@ body {
 }
 
 .kpi-card p {
-  font-size: 1.6rem;
-  font-weight: bold;
+  font-size: 2rem;
+  font-weight: 800;
 }
 
 .message {
@@ -203,11 +204,11 @@ body {
 }
 
 /* Equal middle-row panels with scrollable interior */
-.middle-row > .glass { display: flex; flex-direction: column; height: var(--mid-panel-h, 460px); }
+.middle-row > .glass { display: flex; flex-direction: column; height: var(--mid-panel-h, 380px); }
 #einsatzList { overflow-y: auto; flex: 1; }
 #whatsapp-box { display: flex; flex-direction: column; }
 #whatsapp-messages { overflow-y: auto; flex: 1; }
-.team-notes { display: flex; flex-direction: column; }
+.team-notes { display: flex; flex-direction: column; margin-top: 0; }
 .team-notes-list { overflow-y: auto; flex: 1; }
 
 /* Mittelblock */
