@@ -297,9 +297,10 @@ def send_offer():
     data = request.get_json() or {}
     to_email = data.get('to')
     subject = data.get("subject") or "Ihr unverbindliches Angebot"
-    mail_name = data.get('sms_name')
+mail_name = data.get('sms_name')
+lastName = data.get("lastName") or ""
 
-body = data.get("body") or """Sehr geehrte Familie {mail_name or ''},
+body = data.get("body") or f"""Sehr geehrte Familie {lastName},
 
 vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.
 
