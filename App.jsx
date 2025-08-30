@@ -180,6 +180,7 @@ export default function HelpCareRechner() {
    const rawHtml = buildHTMLFromAngebotTemplate({
       firstName: firstName || "–",
       lastName: lastName || "–",
+      personsSelected: personsSelected,
       globalPrice: formatEUR(result.netto),
       pflegegeldRabat: "- " + formatEUR(pflegegeldAmount),
       verhinderungspflege: "- " + formatEUR(verhinderungAmount),
@@ -253,8 +254,6 @@ export default function HelpCareRechner() {
       if (!to) { alert('Bitte E‑Mail im Formular angeben.'); return; }
       const payload = {
         to,
-        subject: 'Ihr persönliches Angebot',
-        body: 'Guten Tag, im Anhang finden Sie Ihr Angebot als PDF.',
         filename: 'Angebot.pdf',
         pdf_base64: window.__lastOfferPdfBase64,
         sms_number: (telefon || '').trim(),
