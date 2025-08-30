@@ -306,10 +306,6 @@ def send_offer():
         "Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.\n\n"
         "Mit besten Grüßen  \n"
         "Team HelpCare  \n\n"
-        "HelpCare GmbH  \n"
-        "info@helpcare.de  \n"
-        "+49 30 232 5357100  \n"
-        "www.helpcare.de\n"
     )
 
     pdf_b64 = data.get('pdf_base64')
