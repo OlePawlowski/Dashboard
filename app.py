@@ -296,8 +296,23 @@ def send_offer():
         return jsonify({"error": "Nicht eingeloggt"}), 401
     data = request.get_json() or {}
     to_email = data.get('to')
-    subject = data.get('subject') or 'Ihr persönliches Angebot'
-    body = data.get('body') or 'Guten Tag, im Anhang finden Sie Ihr Angebot als PDF.'
+    subject = data.get("subject") or "Ihr unverbindliches Angebot"
+    mail_name = data.get('sms_name')
+
+body = data.get("body") or """Sehr geehrte Familie {mail_name or ''},
+
+vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.
+
+Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.
+
+Mit besten Grüßen  
+Team HelpCare  
+
+HelpCare GmbH  
+info@helpcare.de  
++49 30 232 5357100  
+www.helpcare.de
+"""
     pdf_b64 = data.get('pdf_base64')
     filename = data.get('filename') or 'Angebot.pdf'
     sms_number = data.get('sms_number')
