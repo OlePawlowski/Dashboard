@@ -296,26 +296,23 @@ def send_offer():
         return jsonify({"error": "Nicht eingeloggt"}), 401
     data = request.get_json() or {}
     to_email = data.get('to')
-subject = data.get("subject") or "Ihr unverbindliches Angebot"
-mail_name = data.get('sms_name')
-lastName = data.get("lastName") or ""
+    # Subject/Body defaults (keeps your latest wording) with last name interpolation
+    name_full = (data.get('sms_name') or '').strip()
+    last_name = (data.get('lastName') or (name_full.split()[-1] if name_full else '')).strip()
+    subject = data.get('subject') or "Ihr unverbindliches Angebot"
+    body = data.get('body') or (
+        f"Sehr geehrte Familie {last_name},\n\n"
+        "vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.\n\n"
+        "Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.\n\n"
+        "Mit besten Grüßen  \n"
+        "Team HelpCare  \n\n"
+        "HelpCare GmbH  \n"
+        "info@helpcare.de  \n"
+        "+49 30 232 5357100  \n"
+        "www.helpcare.de\n"
+    )
 
-body = data.get("body") or f"""Sehr geehrte Familie {lastName},
-
-vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.
-
-Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.
-
-Mit besten Grüßen  
-Team HelpCare  
-
-HelpCare GmbH  
-info@helpcare.de  
-+49 30 232 5357100  
-www.helpcare.de
-"""
-
-pdf_b64 = data.get('pdf_base64')
+    pdf_b64 = data.get('pdf_base64')
     filename = data.get('filename') or 'Angebot.pdf'
     sms_number = data.get('sms_number')
     sms_name = data.get('sms_name')
