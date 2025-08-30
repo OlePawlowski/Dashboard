@@ -11,6 +11,7 @@ import requests
 import uuid
 from models import db, User, Anfrage, TeamNote, GmailCredential
 from werkzeug.middleware.proxy_fix import ProxyFix
+from base64 import urlsafe_b64encode
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -46,6 +47,7 @@ for i in range(1, 4):
         USERS[name] = pw
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SEND_SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 # 📬 Google OAuth Flow Builder (env or credentials.json fallback)
 def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
@@ -106,6 +108,10 @@ def load_user_gmail_credentials(username: str):
         return None
     try:
         token_data = json.loads(cred.token_json)
+        # Allow send scope if token already has it
+        scopes = token_data.get('scopes') or token_data.get('_scopes') or []
+        if any('gmail.send' in s for s in scopes):
+            return Credentials.from_authorized_user_info(token_data, SCOPES + SEND_SCOPES)
         return Credentials.from_authorized_user_info(token_data, SCOPES)
     except Exception:
         return None
@@ -121,7 +127,14 @@ def gmail_connect():
         if slot in {"1", "2", "3"}:
             session['gmail_connect_slot'] = slot
         redirect_uri = url_for('gmail_callback', _external=True)
-        flow = build_google_flow(redirect_uri)
+        # Request both read and send scopes to enable emailing PDFs
+        global SCOPES
+        prev = SCOPES
+        try:
+            SCOPES = list({*SCOPES, *SEND_SCOPES})
+            flow = build_google_flow(redirect_uri)
+        finally:
+            SCOPES = prev
         # Validate client type and redirect URI allowlist to prevent Google "invalid request"
         try:
             if getattr(flow, 'client_type', None) != 'web':
@@ -278,6 +291,54 @@ def get_emails():
         email_list.append(email_info)
 
     return jsonify(email_list)
+
+# 📧 Angebot per E-Mail versenden (PDF Base64)
+@app.route('/api/send-offer', methods=['POST'])
+def send_offer():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    data = request.get_json() or {}
+    to_email = data.get('to')
+    subject = data.get('subject') or 'Ihr persönliches Angebot'
+    body = data.get('body') or 'Guten Tag, im Anhang finden Sie Ihr Angebot als PDF.'
+    pdf_b64 = data.get('pdf_base64')
+    filename = data.get('filename') or 'Angebot.pdf'
+    if not to_email or not pdf_b64:
+        return jsonify({"error": "to und pdf_base64 erforderlich"}), 400
+
+    # Load credentials with send scope if possible
+    creds = load_user_gmail_credentials(session['user'])
+    if not creds:
+        return jsonify({"error": "Kein Gmail-Konto verbunden."}), 400
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+        # Build MIME message with PDF attachment
+        boundary = 'mixed_boundary'
+        message_parts = []
+        message_parts.append(f"Content-Type: multipart/mixed; boundary={boundary}\r\n")
+        message_parts.append(f"MIME-Version: 1.0\r\n")
+        message_parts.append(f"to: {to_email}\r\n")
+        message_parts.append(f"subject: {subject}\r\n\r\n")
+        # Text part
+        message_parts.append(f"--{boundary}\r\n")
+        message_parts.append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+        message_parts.append(body + "\r\n\r\n")
+        # Attachment part
+        message_parts.append(f"--{boundary}\r\n")
+        message_parts.append(f"Content-Type: application/pdf; name={filename}\r\n")
+        message_parts.append("Content-Transfer-Encoding: base64\r\n")
+        message_parts.append(f"Content-Disposition: attachment; filename={filename}\r\n\r\n")
+        # Strip header if present
+        if pdf_b64.startswith('data:application/pdf;base64,'):
+            pdf_b64 = pdf_b64.split(',', 1)[1]
+        message_parts.append(pdf_b64 + "\r\n")
+        message_parts.append(f"--{boundary}--")
+        raw_message = ''.join(message_parts).encode('utf-8')
+        raw = urlsafe_b64encode(raw_message).decode('utf-8')
+        service.users().messages().send(userId='me', body={'raw': raw}).execute()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Senden fehlgeschlagen: {str(e)}"}), 500
 
 # 📲 Webhook von Chatwoot empfangen
 @app.route("/webhook/chatwoot", methods=["POST"])

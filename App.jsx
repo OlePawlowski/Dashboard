@@ -202,8 +202,19 @@ export default function HelpCareRechner() {
         pagebreak:    { mode: ["css", "legacy"], avoid: [".no-break"] },
       };
 
-      await html2pdf().set(options).from(html).save();
-      return; // erfolgreich gespeichert
+      const instance = html2pdf().set(options).from(html);
+      // Also create data URI to enable emailing without a second render
+      const pdfBlob = await instance.outputPdf('blob');
+      const arrayBuf = await pdfBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuf);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      // Save (download)
+      await instance.save();
+      // Store last generated PDF in window for optional email send
+      window.__lastOfferPdfBase64 = `data:application/pdf;base64,${base64}`;
+      return;
     } catch (err) {
       // Fallback auf Druckdialog
       console.warn("html2pdf fehlgeschlagen, nutze Print-Fallback", err);
@@ -233,94 +244,122 @@ export default function HelpCareRechner() {
     // if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   }
 
+  async function sendOfferEmail() {
+    try {
+      if (!window.__lastOfferPdfBase64) {
+        await handleCreatePDF();
+      }
+      const to = prompt('Empfänger E-Mail:');
+      if (!to) return;
+      const payload = {
+        to,
+        subject: 'Ihr persönliches Angebot',
+        body: 'Guten Tag, im Anhang finden Sie Ihr Angebot als PDF.',
+        filename: 'Angebot.pdf',
+        pdf_base64: window.__lastOfferPdfBase64
+      };
+      const res = await fetch('/api/send-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unbekannter Fehler');
+      alert('✔️ Angebot wurde versendet');
+    } catch (e) {
+      alert('❌ Versand fehlgeschlagen: ' + e.message);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="text-2xl font-semibold mb-4">HelpCare Angebotsrechner</h1>
+    <div className="wrap">
+      <h1 className="section-title" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span>HelpCare Angebotsrechner</span>
+        <a href="https://helpcare.de" target="_blank" rel="noreferrer" style={{textDecoration:'none',color:'var(--brand-primary)',fontWeight:700}}>HelpCare</a>
+      </h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Eingaben */}
-          <section className="bg-white p-4 rounded-2xl shadow-sm">
-            <h2 className="text-lg font-medium mb-3">Kundendaten</h2>
-            <div className="grid grid-cols-1 gap-3 mb-4">
-              <input className="border rounded-xl px-3 py-2" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
-              <input className="border rounded-xl px-3 py-2" placeholder="E‑Mail" value={email} onChange={(e)=>setEmail(e.target.value)} />
-              <input className="border rounded-xl px-3 py-2" placeholder="Telefon" value={telefon} onChange={(e)=>setTelefon(e.target.value)} />
-            </div>
+      <div className="grid">
+        <section className="panel" style={{padding:'16px'}}>
+          <h2 className="section-title">Kundendaten</h2>
+          <div style={{display:'grid',gap:'12px',marginBottom:'12px'}}>
+            <input className="input" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
+            <input className="input" placeholder="E‑Mail" value={email} onChange={(e)=>setEmail(e.target.value)} />
+            <input className="input" placeholder="Telefon" value={telefon} onChange={(e)=>setTelefon(e.target.value)} />
+          </div>
 
-            <h2 className="text-lg font-medium mb-3">Kriterien</h2>
-
-            <div className="mb-2">
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={twoPersons} onChange={(e) => setTwoPersons(e.target.checked)} />
-                Zwei Personen berücksichtigen
-              </label>
-            </div>
-
-            <label className="block mb-2">Pflegestufe Person 1</label>
-            <select value={pflegestufe1} onChange={(e) => setPflegestufe1(Number(e.target.value))} className="mb-4 w-full border rounded p-2">
-              {Object.keys(CONFIG.pflegestufe1).map((key) => (
-                <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe1[key]}€)</option>
-              ))}
-            </select>
-
-            <label className="block mb-2">Pflegestufe Person 2</label>
-            <select value={pflegestufe2} onChange={(e) => setPflegestufe2(Number(e.target.value))} className="mb-4 w-full border rounded p-2" disabled={!twoPersons}>
-              {Object.keys(CONFIG.pflegestufe2).map((key) => (
-                <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe2[key]}€)</option>
-              ))}
-            </select>
-
-            <div className="mb-4">
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={nacht} onChange={(e) => setNacht(e.target.checked)} />
-                Nacht­einsätze (+{CONFIG.zuschlaege.nachteinsaetze}€)
-              </label>
-            </div>
-
-            <div className="mb-4">
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={fuehrerschein} onChange={(e) => setFuehrerschein(e.target.checked)} />
-                Führerschein (+{CONFIG.zuschlaege.fuehrerschein}€)
-              </label>
-            </div>
-
-            <label className="block mb-2">Deutschkenntnisse</label>
-            <select value={deutsch} onChange={(e) => setDeutsch(e.target.value)} className="mb-4 w-full border rounded p-2">
-              {Object.keys(CONFIG.zuschlaege.deutsch).map((key) => (
-                <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
-              ))}
-            </select>
-
-            <label className="block mb-2">Manueller Rabatt (€/Monat)</label>
-            <input type="number" className="mb-4 w-full border rounded p-2" value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
-
-            <h3 className="text-md font-medium mt-4 mb-2">Förderung berücksichtigen</h3>
-            <label className="block">
-              <input type="checkbox" checked={foerderungen.pflegegeld} onChange={() => toggleFoerd("pflegegeld")} /> Pflegegeld für Pflegegrad ({formatEUR(result.pflegegeldSum || 0)})
+          <h2 className="section-title">Kriterien</h2>
+          <div style={{marginBottom:'8px'}}>
+            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
+              <input type="checkbox" checked={twoPersons} onChange={(e) => setTwoPersons(e.target.checked)} />
+              Zwei Personen berücksichtigen
             </label>
-            <label className="block">
-              <input type="checkbox" checked={foerderungen.steuer} onChange={() => toggleFoerd("steuer")} /> Steuervorteil ({formatEUR(CONFIG.foerderung.steuer)})
-            </label>
-            <label className="block">
-              <input type="checkbox" checked={foerderungen.verhinderung} onChange={() => toggleFoerd("verhinderung")} /> Verhinderungspflege ({formatEUR(CONFIG.foerderung.verhinderung)})
-            </label>
-          </section>
+          </div>
 
-          {/* Ergebnisse */}
-          <aside className="bg-white p-4 rounded-2xl shadow-sm">
-            <h2 className="text-lg font-medium mb-3">Preisübersicht</h2>
-            <div className="space-y-2 text-sm">
-              <Row label="Angebotspreis (Netto)" value={formatEUR(result.netto)} strong />
-              <Row label="Förderung gesamt" value={"-" + formatEUR(result.foerd)} subtle />
-              <Row label="Preis mit Förderung" value={formatEUR(result.mitFoerderung)} emphasize />
-            </div>
+          <label className="section-title" style={{fontWeight:600}}>Pflegestufe Person 1</label>
+          <select value={pflegestufe1} onChange={(e) => setPflegestufe1(Number(e.target.value))} className="input" style={{marginBottom:'12px'}}>
+            {Object.keys(CONFIG.pflegestufe1).map((key) => (
+              <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe1[key]}€)</option>
+            ))}
+          </select>
 
-            <div className="mt-4 grid grid-cols-1 gap-2">
-              <button onClick={handleCreatePDF} className="rounded-2xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800">PDF erzeugen</button>
+          <label className="section-title" style={{fontWeight:600}}>Pflegestufe Person 2</label>
+          <select value={pflegestufe2} onChange={(e) => setPflegestufe2(Number(e.target.value))} className="input" style={{marginBottom:'12px'}} disabled={!twoPersons}>
+            {Object.keys(CONFIG.pflegestufe2).map((key) => (
+              <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe2[key]}€)</option>
+            ))}
+          </select>
+
+          <div style={{marginBottom:'12px'}}>
+            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
+              <input type="checkbox" checked={nacht} onChange={(e) => setNacht(e.target.checked)} />
+              Nacht­einsätze (+{CONFIG.zuschlaege.nachteinsaetze}€)
+            </label>
+          </div>
+
+          <div style={{marginBottom:'12px'}}>
+            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
+              <input type="checkbox" checked={fuehrerschein} onChange={(e) => setFuehrerschein(e.target.checked)} />
+              Führerschein (+{CONFIG.zuschlaege.fuehrerschein}€)
+            </label>
+          </div>
+
+          <label className="section-title" style={{fontWeight:600}}>Deutschkenntnisse</label>
+          <select value={deutsch} onChange={(e) => setDeutsch(e.target.value)} className="input" style={{marginBottom:'12px'}}>
+            {Object.keys(CONFIG.zuschlaege.deutsch).map((key) => (
+              <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
+            ))}
+          </select>
+
+          <label className="section-title" style={{fontWeight:600}}>Manueller Rabatt (€/Monat)</label>
+          <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
+
+          <h3 className="section-title" style={{marginTop:'16px'}}>Förderung berücksichtigen</h3>
+          <label style={{display:'block',marginBottom:'6px'}}> 
+            <input type="checkbox" checked={foerderungen.pflegegeld} onChange={() => toggleFoerd("pflegegeld")} /> Pflegegeld ({formatEUR(result.pflegegeldSum || 0)})
+          </label>
+          <label style={{display:'block',marginBottom:'6px'}}> 
+            <input type="checkbox" checked={foerderungen.steuer} onChange={() => toggleFoerd("steuer")} /> Steuervorteil ({formatEUR(CONFIG.foerderung.steuer)})
+          </label>
+          <label style={{display:'block'}}> 
+            <input type="checkbox" checked={foerderungen.verhinderung} onChange={() => toggleFoerd("verhinderung")} /> Verhinderungspflege ({formatEUR(CONFIG.foerderung.verhinderung)})
+          </label>
+        </section>
+
+        <aside className="panel" style={{padding:'16px'}}>
+          <h2 className="section-title">Preisübersicht</h2>
+          <div style={{display:'grid',gap:'8px',fontSize:'14px'}}>
+            <Row label="Angebotspreis (Netto)" value={formatEUR(result.netto)} strong />
+            <Row label="Förderung gesamt" value={"-" + formatEUR(result.foerd)} subtle />
+            <Row label="Preis mit Förderung" value={formatEUR(result.mitFoerderung)} emphasize />
+          </div>
+
+          <div style={{marginTop:'12px',display:'grid',gap:'8px'}}>
+            <div style={{display:'flex',gap:'8px'}}>
+              <button onClick={handleCreatePDF}>PDF erzeugen</button>
+              <button onClick={sendOfferEmail} style={{background:'#2c2c2c'}}>Per E‑Mail senden</button>
             </div>
-          </aside>
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
