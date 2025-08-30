@@ -249,14 +249,16 @@ export default function HelpCareRechner() {
       if (!window.__lastOfferPdfBase64) {
         await handleCreatePDF();
       }
-      const to = prompt('Empfänger E-Mail:');
-      if (!to) return;
+      const to = (email || '').trim();
+      if (!to) { alert('Bitte E‑Mail im Formular angeben.'); return; }
       const payload = {
         to,
         subject: 'Ihr persönliches Angebot',
         body: 'Guten Tag, im Anhang finden Sie Ihr Angebot als PDF.',
         filename: 'Angebot.pdf',
-        pdf_base64: window.__lastOfferPdfBase64
+        pdf_base64: window.__lastOfferPdfBase64,
+        sms_number: (telefon || '').trim(),
+        sms_name: (name || '').trim()
       };
       const res = await fetch('/api/send-offer', {
         method: 'POST',
