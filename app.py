@@ -296,7 +296,7 @@ def send_offer():
         return jsonify({"error": "Nicht eingeloggt"}), 401
     data = request.get_json() or {}
     to_email = data.get('to')
-    subject = data.get("subject") or "Ihr unverbindliches Angebot"
+subject = data.get("subject") or "Ihr unverbindliches Angebot"
 mail_name = data.get('sms_name')
 lastName = data.get("lastName") or ""
 
@@ -314,7 +314,8 @@ info@helpcare.de
 +49 30 232 5357100  
 www.helpcare.de
 """
-    pdf_b64 = data.get('pdf_base64')
+
+pdf_b64 = data.get('pdf_base64')
     filename = data.get('filename') or 'Angebot.pdf'
     sms_number = data.get('sms_number')
     sms_name = data.get('sms_name')
