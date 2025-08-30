@@ -48,6 +48,7 @@ for i in range(1, 4):
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 SEND_SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SETTINGS_SCOPES = ['https://www.googleapis.com/auth/gmail.settings.basic']
 
 # 📬 Google OAuth Flow Builder (env or credentials.json fallback)
 def build_google_flow(redirect_uri: str, state: str = None, scopes=None) -> Flow:
@@ -111,9 +112,8 @@ def load_user_gmail_credentials(username: str):
         token_data = json.loads(cred.token_json)
         # Allow send scope if token already has it
         scopes = token_data.get('scopes') or token_data.get('_scopes') or []
-        if any('gmail.send' in s for s in scopes):
-            return Credentials.from_authorized_user_info(token_data, SCOPES + SEND_SCOPES)
-        return Credentials.from_authorized_user_info(token_data, SCOPES)
+        want = list({*SCOPES, *([s for s in SEND_SCOPES if any('gmail.send' in sc for sc in scopes)]), *([s for s in SETTINGS_SCOPES if any('gmail.settings' in sc for sc in scopes)])})
+        return Credentials.from_authorized_user_info(token_data, want)
     except Exception:
         return None
 
@@ -129,7 +129,7 @@ def gmail_connect():
             session['gmail_connect_slot'] = slot
         redirect_uri = url_for('gmail_callback', _external=True)
         # Request both read and send scopes to enable emailing PDFs
-        requested_scopes = list({*SCOPES, *SEND_SCOPES})
+        requested_scopes = list({*SCOPES, *SEND_SCOPES, *SETTINGS_SCOPES})
         flow = build_google_flow(redirect_uri, scopes=requested_scopes)
         # Validate client type and redirect URI allowlist to prevent Google "invalid request"
         try:
@@ -170,7 +170,7 @@ def gmail_callback():
     redirect_uri = url_for('gmail_callback', _external=True)
     try:
         # Recreate flow with same state and same scopes as initial request (read + send)
-        requested_scopes = list({*SCOPES, *SEND_SCOPES})
+        requested_scopes = list({*SCOPES, *SEND_SCOPES, *SETTINGS_SCOPES})
         flow = build_google_flow(redirect_uri, state=expected_state, scopes=requested_scopes)
         code_verifier = session.get('oauth_code_verifier')
         if code_verifier:
@@ -326,19 +326,72 @@ def send_offer():
         return jsonify({"error": "Kein Gmail-Konto verbunden."}), 400
     try:
         service = build('gmail', 'v1', credentials=creds)
-        # Build MIME message with PDF attachment
-        boundary = 'mixed_boundary'
+
+        # Try to fetch Gmail signature (HTML) and append to message
+        signature_html = None
+        try:
+            settings = service.users().settings().sendAs().list(userId='me').execute() or {}
+            send_as_list = settings.get('sendAs', []) or []
+            primary = None
+            for sa in send_as_list:
+                if sa.get('isPrimary') or sa.get('isDefault'):
+                    primary = sa
+                    break
+            if not primary and send_as_list:
+                primary = send_as_list[0]
+            if primary:
+                signature_html = (primary.get('signature') or '').strip() or None
+        except Exception:
+            signature_html = None
+
+        # Prepare text and HTML bodies
+        def html_to_text(html:str) -> str:
+            try:
+                # basic tag replacement for line breaks
+                repl = html.replace('<br>', '\n').replace('<br/>', '\n').replace('<br />', '\n')
+                import re
+                repl = re.sub(r'<[^>]+>', '', repl)
+                # unescape common entities
+                repl = repl.replace('&nbsp;', ' ').replace('&amp;', '&')
+                return repl
+            except Exception:
+                return ''
+
+        body_text_final = body
+        body_html_final = (
+            "<div style=\"font-family:Arial,Helvetica,sans-serif;white-space:pre-wrap\">" +
+            (body or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') +
+            "</div>"
+        )
+        if signature_html:
+            sig_text = html_to_text(signature_html).strip()
+            if sig_text:
+                body_text_final = body_text_final.rstrip() + "\n\n" + sig_text
+            body_html_final = body_html_final + "<div>" + signature_html + "</div>"
+
+        # Build MIME message with multipart/alternative (text + HTML) and PDF attachment
+        mixed_boundary = 'mixed_boundary'
+        alt_boundary = 'alt_boundary'
         message_parts = []
-        message_parts.append(f"Content-Type: multipart/mixed; boundary={boundary}\r\n")
+        message_parts.append(f"Content-Type: multipart/mixed; boundary={mixed_boundary}\r\n")
         message_parts.append(f"MIME-Version: 1.0\r\n")
         message_parts.append(f"to: {to_email}\r\n")
         message_parts.append(f"subject: {subject}\r\n\r\n")
-        # Text part
-        message_parts.append(f"--{boundary}\r\n")
+        # Alternative part (text + HTML)
+        message_parts.append(f"--{mixed_boundary}\r\n")
+        message_parts.append(f"Content-Type: multipart/alternative; boundary={alt_boundary}\r\n\r\n")
+        # Text
+        message_parts.append(f"--{alt_boundary}\r\n")
         message_parts.append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-        message_parts.append(body + "\r\n\r\n")
+        message_parts.append(body_text_final + "\r\n\r\n")
+        # HTML
+        message_parts.append(f"--{alt_boundary}\r\n")
+        message_parts.append("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+        message_parts.append(body_html_final + "\r\n\r\n")
+        # End alternative
+        message_parts.append(f"--{alt_boundary}--\r\n")
         # Attachment part
-        message_parts.append(f"--{boundary}\r\n")
+        message_parts.append(f"--{mixed_boundary}\r\n")
         message_parts.append(f"Content-Type: application/pdf; name={filename}\r\n")
         message_parts.append("Content-Transfer-Encoding: base64\r\n")
         message_parts.append(f"Content-Disposition: attachment; filename={filename}\r\n\r\n")
@@ -346,7 +399,7 @@ def send_offer():
         if pdf_b64.startswith('data:application/pdf;base64,'):
             pdf_b64 = pdf_b64.split(',', 1)[1]
         message_parts.append(pdf_b64 + "\r\n")
-        message_parts.append(f"--{boundary}--")
+        message_parts.append(f"--{mixed_boundary}--")
         raw_message = ''.join(message_parts).encode('utf-8')
         raw = urlsafe_b64encode(raw_message).decode('utf-8')
         service.users().messages().send(userId='me', body={'raw': raw}).execute()
