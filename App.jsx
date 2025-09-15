@@ -42,14 +42,24 @@ export default function HelpCareRechner() {
   const [twoPersons, setTwoPersons] = useState(false);
   const [manualDiscount, setManualDiscount] = useState(0);
   const [neutral, setNeutral] = useState(false);
+  const [requirementsCost, setRequirementsCost] = useState(0);
 
   const result = useMemo(() => {
-    let basis = CONFIG.fixpreis;
-    basis += CONFIG.pflegestufe1[pflegestufe1] || 0;
-    basis += twoPersons ? (CONFIG.pflegestufe2[pflegestufe2] || 0) : 0;
-    if (nacht) basis += CONFIG.zuschlaege.nachteinsaetze;
-    if (fuehrerschein) basis += CONFIG.zuschlaege.fuehrerschein;
-    basis += CONFIG.zuschlaege.deutsch[deutsch] || 0;
+    const baseFix = CONFIG.fixpreis;
+    const reqCost = Number(requirementsCost) || 0;
+    let basis = baseFix;
+    if (neutral) {
+      // Neutralangebot: Nur Grundpreis + manuell eingetragene Anforderungen
+      basis += reqCost;
+    } else {
+      // Standardangebot: Bisherige Kalkulation + Anforderungen
+      basis += CONFIG.pflegestufe1[pflegestufe1] || 0;
+      basis += twoPersons ? (CONFIG.pflegestufe2[pflegestufe2] || 0) : 0;
+      if (nacht) basis += CONFIG.zuschlaege.nachteinsaetze;
+      if (fuehrerschein) basis += CONFIG.zuschlaege.fuehrerschein;
+      basis += CONFIG.zuschlaege.deutsch[deutsch] || 0;
+      basis += reqCost;
+    }
     basis = Math.max(basis - (Number(manualDiscount) || 0), 0);
 
     let foerd = 0;
@@ -60,7 +70,7 @@ export default function HelpCareRechner() {
     if (foerderungen.verhinderung) foerd += CONFIG.foerderung.verhinderung * personsSelected;
 
     return { netto: basis, mitFoerderung: Math.max(basis - foerd, 0), foerd, pflegegeldSum, personsSelected };
-  }, [pflegestufe1, pflegestufe2, nacht, fuehrerschein, deutsch, foerderungen, twoPersons, manualDiscount]);
+  }, [pflegestufe1, pflegestufe2, nacht, fuehrerschein, deutsch, foerderungen, twoPersons, manualDiscount, requirementsCost, neutral]);
 
   function toggleFoerd(key) { setFoerderungen((prev) => ({ ...prev, [key]: !prev[key] })); }
 
@@ -182,11 +192,13 @@ export default function HelpCareRechner() {
       firstName: firstName || "–",
       lastName: lastName || "–",
       personsSelected: personsSelected,
+      basePrice: formatEUR(CONFIG.fixpreis),
+      requirementsPrice: formatEUR(Number(requirementsCost) || 0),
       globalPrice: formatEUR(result.netto),
       pflegegeldRabat: neutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
       verhinderungspflege: neutral ? "" : ("- " + formatEUR(verhinderungAmount)),
       steuererleichterung: neutral ? "" : ("- " + formatEUR(steuerAmount)),
-      preisMitFoerderung: neutral ? formatEUR(result.netto) : formatEUR(result.mitFoerderung),
+      preisMitFoerderung: formatEUR(result.mitFoerderung),
       neutralDeductionsHidden: neutral ? "display:none;" : "",
     });
 
@@ -332,6 +344,9 @@ export default function HelpCareRechner() {
               <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
             ))}
           </select>
+
+          <label className="section-title" style={{fontWeight:600}}>Anforderungen (€/Monat)</label>
+          <input type="number" className="input" style={{marginBottom:'12px'}} value={requirementsCost} onChange={(e) => setRequirementsCost(Number(e.target.value || 0))} />
 
           <label className="section-title" style={{fontWeight:600}}>Manueller Rabatt (€/Monat)</label>
           <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
