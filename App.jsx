@@ -42,6 +42,7 @@ export default function HelpCareRechner() {
   const [twoPersons, setTwoPersons] = useState(false);
   const [manualDiscount, setManualDiscount] = useState(0);
   const [neutral, setNeutral] = useState(false);
+  const [anforderungen, setAnforderungen] = useState(0);
 
   const result = useMemo(() => {
     let basis = CONFIG.fixpreis;
@@ -183,11 +184,12 @@ export default function HelpCareRechner() {
       lastName: lastName || "–",
       personsSelected: personsSelected,
       globalPrice: formatEUR(result.netto),
+      anforderungenPreis: formatEUR(Number(anforderungen) || 0),
       pflegegeldRabat: neutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
       verhinderungspflege: neutral ? "" : ("- " + formatEUR(verhinderungAmount)),
       steuererleichterung: neutral ? "" : ("- " + formatEUR(steuerAmount)),
-      preisMitFoerderung: neutral ? formatEUR(result.netto) : formatEUR(result.mitFoerderung),
-      neutralDeductionsHidden: neutral ? "display:none;" : "",
+      preisMitFoerderung: neutral ? formatEUR(CONFIG.fixpreis + (Number(anforderungen) || 0)) : formatEUR(result.mitFoerderung),
+      neutralDeductionsHidden: neutral ? "hidden=\"hidden\"" : "",
     });
 
      const html = await inlineExternalImages(rawHtml);
@@ -332,6 +334,9 @@ export default function HelpCareRechner() {
               <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
             ))}
           </select>
+
+          <label className="section-title" style={{fontWeight:600}}>Anforderungen (€/Monat)</label>
+          <input type="number" className="input" style={{marginBottom:'12px'}} value={anforderungen} onChange={(e) => setAnforderungen(Number(e.target.value || 0))} />
 
           <label className="section-title" style={{fontWeight:600}}>Manueller Rabatt (€/Monat)</label>
           <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />

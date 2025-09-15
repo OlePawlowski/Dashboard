@@ -230,11 +230,19 @@
   <!-- SVG Hintergrund für diesen Bereich -->
 
   <div style="padding:20px; border-radius:8px; margin-bottom:25px; position: relative;">
-    <h2 style="color:#f78060; font-size:22px; margin:0 0 10px 0;">Monatlichen Betreuungskosten: <span>{globalPrice}</span></h2>
-    <p style="margin:0 0 15px 0; display: none;">für die von Ihnen gewählten Optionen aus dem Fragebogen</p>
-    <div style="font-size:24px; font-weight:bold; margin:10px 0;"></div>
-    
-    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:20px 0; {neutralDeductionsHidden}">
+    <h2 style="color:#f78060; font-size:22px; margin:0 0 10px 0;">Monatliche Betreuungskosten</h2>
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:10px 0;">
+      <tr>
+        <td style="padding:10px 0; border-bottom:1px solid #ddd;">Grundpreis</td>
+        <td style="padding:10px 0; border-bottom:1px solid #ddd; text-align:right;">2.299 €</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0; border-bottom:1px solid #ddd;">zzgl. Anforderungen</td>
+        <td style="padding:10px 0; border-bottom:1px solid #ddd; text-align:right;">{anforderungenPreis}</td>
+      </tr>
+    </table>
+
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:20px 0;" {neutralDeductionsHidden}>
       <tr>
         <td style="padding:10px 0; border-bottom:1px solid #ddd;">Pflegegeld für Pflegegrad</td>
         <td style="padding:10px 0; border-bottom:1px solid #ddd; text-align:right;">{pflegegeldRabat}</td>
@@ -259,8 +267,7 @@
             <h3 style="color:#333; font-size:18px; margin:25px 0 15px 0;">Wiederkehrende Reisekosten bei Personalwechsel</h3>
             <p style="margin:0 0 25px 0; line-height:1.6;">Je nach Entfernung und Fahrverbindung fallen für die An- und Abreise ihrer Betreuungskräfte Reisekosten an. Über die Höhe der jeweils zu tragenden Reisekosten informieren wir Sie nach erfolgter Reisebuchung.</p>
             
-            <h3 style="color:#333; font-size:18px; margin:25px 0 15px 0;">Einmalige Vermittlungsgebühr</h3>
-            <p style="margin:0 0 25px 0; line-height:1.6;">Nach erfolgter Anreise der ersten Betreuungskraft, stellt HelpCare eine Bearbeitungsgebühr von <strong>359,00 €</strong> in Rechnung.</p>
+            
             
             <p style="margin:0 0 25px 0; line-height:1.6;">Es gelten unsere Allgemeinen Geschäftsbedingungen. Diese finden Sie auf unserer Website:
             <a href="https://www.helpcare.de/agb" target="_blank" style="color:#f78060; text-decoration:underline;">https://www.helpcare.de/agb</a></p>
