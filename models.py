@@ -79,3 +79,21 @@ class GmailCredential(db.Model):
     token_json = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PdfDocument(db.Model):
+    __tablename__ = 'pdf_documents'
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), unique=True, nullable=False)
+    uploaded_by = db.Column(db.String(80), nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'filename': self.filename,
+            'uploaded_by': self.uploaded_by,
+            'uploaded_at': self.uploaded_at.isoformat()
+        }

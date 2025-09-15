@@ -67,9 +67,13 @@
           </div>
         </div>
 
-        <div class="kpi-score glass" id="whatsapp-box">
-          <h3>Whatsapp Nachrichten</h3>
-          <div id="whatsapp-messages">Lade Nachrichten...</div>
+        <div class="kpi-score glass" id="pdf-box">
+          <h3>PDF Ablage</h3>
+          <form id="pdfUploadForm" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <input type="file" id="pdfFile" accept="application/pdf" required />
+            <button type="submit">Hochladen</button>
+          </form>
+          <div id="pdf-list">Lade PDFs...</div>
         </div>
 
         <!-- Teamnotizen statt persönliche Notizen -->
@@ -116,51 +120,57 @@
     </main>
   </div>
 
- <!-- Whatsapp -->
+ <!-- PDF Ablage -->
 <script>
-  const CHATWOOT_URL = "https://app.chatwoot.com/app/accounts/130586/dashboard";
-  const whatsappBox = document.getElementById("whatsapp-messages");
+  const pdfList = document.getElementById('pdf-list');
+  const pdfForm = document.getElementById('pdfUploadForm');
+  const pdfFile = document.getElementById('pdfFile');
 
-  // Delegiertes Click/Keyboard-Handling (einmalig binden, funktioniert auch nach Re-Render)
-  whatsappBox.addEventListener("click", (e) => {
-    const card = e.target.closest(".message");
-    if (!card) return;
-    window.location.href = CHATWOOT_URL;
-  });
-  whatsappBox.addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && e.target.closest(".message")) {
-      e.preventDefault();
-      window.location.href = CHATWOOT_URL;
+  function renderPdfs(items){
+    if (!Array.isArray(items) || !items.length){
+      pdfList.innerHTML = '<p>Keine PDFs vorhanden.</p>';
+      return;
     }
-  });
-
-  async function ladeNachrichten() {
-    try {
-      const res = await fetch("/api/whatsapp-messages");
-      const daten = await res.json();
-
-      if (!daten.length) {
-        whatsappBox.innerHTML = "<p>Keine neuen Nachrichten.</p>";
-        return;
-      }
-
-      // Karten rendern – klickbar & tastaturbedienbar
-      whatsappBox.innerHTML = daten.map(n => `
-        <div class="message glass" role="button" tabindex="0" style="cursor:pointer;">
-          <strong>${n.contact}</strong><br>
-          ${n.text}<br>
-          <small>${new Date(n.time).toLocaleString("de-DE")}</small>
+    pdfList.innerHTML = items.map(d => `
+      <div class="message glass" style="display:flex;justify-content:space-between;align-items:center;gap:8px; padding:8px;">
+        <div>
+          <strong>${d.filename}</strong><br>
+          <small>von ${d.uploaded_by || 'unbekannt'} • ${new Date(d.uploaded_at).toLocaleString('de-DE')}</small>
         </div>
-      `).join("");
+        <a class="btn-small" href="/api/pdfs/${d.id}" target="_blank" rel="noopener">Öffnen</a>
+      </div>
+    `).join('');
+  }
 
-    } catch (err) {
-      whatsappBox.innerHTML = "<p>Fehler beim Laden der Nachrichten.</p>";
-      console.error(err);
+  async function loadPdfs(){
+    try{
+      const res = await fetch('/api/pdfs', {cache:'no-store'});
+      const data = await res.json();
+      renderPdfs(data);
+    }catch(e){
+      pdfList.innerHTML = '<p>Fehler beim Laden.</p>';
     }
   }
 
-  ladeNachrichten();
-  setInterval(ladeNachrichten, 10000); // alle 30s neu laden
+  pdfForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const file = pdfFile.files && pdfFile.files[0];
+    if (!file){ alert('Bitte eine PDF auswählen.'); return; }
+    const fd = new FormData();
+    fd.append('file', file);
+    try{
+      const res = await fetch('/api/pdfs', { method:'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload fehlgeschlagen');
+      pdfFile.value = '';
+      await loadPdfs();
+    }catch(err){
+      alert('❌ ' + err.message);
+    }
+  });
+
+  loadPdfs();
+  setInterval(loadPdfs, 5000);
 </script>
 
  <script>

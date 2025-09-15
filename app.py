@@ -9,9 +9,10 @@ from dotenv import load_dotenv
 import json
 import requests
 import uuid
-from models import db, User, Anfrage, TeamNote, GmailCredential
+from models import db, User, Anfrage, TeamNote, GmailCredential, PdfDocument
 from werkzeug.middleware.proxy_fix import ProxyFix
 from base64 import urlsafe_b64encode
+from werkzeug.utils import secure_filename
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -239,6 +240,58 @@ def dashboard():
     aktuelles_datum = datetime.datetime.now().strftime('%A, %d. %B %Y')
     username = session.get("user")
     return render_template("index.html", aktuelles_datum=aktuelles_datum, username=username)
+
+# 📄 PDF Ablage – Konfiguration
+UPLOAD_FOLDER = os.getenv('PDF_UPLOAD_DIR', os.path.join(os.getcwd(), 'uploaded_pdfs'))
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_PDF_EXTENSIONS = {'.pdf'}
+
+def _is_pdf_filename(name: str) -> bool:
+    _, ext = os.path.splitext(name.lower())
+    return ext in ALLOWED_PDF_EXTENSIONS
+
+# 📄 Liste der PDFs
+@app.route('/api/pdfs', methods=['GET'])
+def list_pdfs():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    docs = PdfDocument.query.order_by(PdfDocument.id.desc()).limit(500).all()
+    return jsonify([d.to_dict() for d in docs])
+
+# 📄 PDF hochladen
+@app.route('/api/pdfs', methods=['POST'])
+def upload_pdf():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    if 'file' not in request.files:
+        return jsonify({"error": "Keine Datei übermittelt"}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({"error": "Ungültige Datei"}), 400
+    original = secure_filename(f.filename)
+    if not _is_pdf_filename(original):
+        return jsonify({"error": "Nur PDF-Dateien sind erlaubt"}), 400
+    unique = uuid.uuid4().hex + '.pdf'
+    path = os.path.join(UPLOAD_FOLDER, unique)
+    f.save(path)
+    doc = PdfDocument(filename=original, stored_filename=unique, uploaded_by=session.get('user'))
+    db.session.add(doc)
+    db.session.commit()
+    return jsonify(doc.to_dict()), 201
+
+# 📄 PDF herunterladen
+@app.route('/api/pdfs/<int:doc_id>', methods=['GET'])
+def download_pdf(doc_id: int):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    doc = PdfDocument.query.get(doc_id)
+    if not doc:
+        return jsonify({"error": "Nicht gefunden"}), 404
+    path = os.path.join(UPLOAD_FOLDER, doc.stored_filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "Datei fehlt auf dem Server"}), 410
+    from flask import send_file
+    return send_file(path, as_attachment=True, download_name=doc.filename, mimetype='application/pdf')
 
 # 📧 Gmail API
 @app.route("/api/emails")

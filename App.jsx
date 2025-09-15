@@ -41,6 +41,7 @@ export default function HelpCareRechner() {
   const [foerderungen, setFoerderungen] = useState({ pflegegeld: true, steuer: false, verhinderung: false });
   const [twoPersons, setTwoPersons] = useState(false);
   const [manualDiscount, setManualDiscount] = useState(0);
+  const [neutral, setNeutral] = useState(false);
 
   const result = useMemo(() => {
     let basis = CONFIG.fixpreis;
@@ -182,10 +183,11 @@ export default function HelpCareRechner() {
       lastName: lastName || "–",
       personsSelected: personsSelected,
       globalPrice: formatEUR(result.netto),
-      pflegegeldRabat: "- " + formatEUR(pflegegeldAmount),
-      verhinderungspflege: "- " + formatEUR(verhinderungAmount),
-      steuererleichterung: "- " + formatEUR(steuerAmount),
-      preisMitFoerderung: formatEUR(result.mitFoerderung),
+      pflegegeldRabat: neutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
+      verhinderungspflege: neutral ? "" : ("- " + formatEUR(verhinderungAmount)),
+      steuererleichterung: neutral ? "" : ("- " + formatEUR(steuerAmount)),
+      preisMitFoerderung: neutral ? formatEUR(result.netto) : formatEUR(result.mitFoerderung),
+      neutralDeductionsHidden: neutral ? "display:none;" : "",
     });
 
      const html = await inlineExternalImages(rawHtml);
@@ -335,6 +337,12 @@ export default function HelpCareRechner() {
           <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
 
           <h3 className="section-title" style={{marginTop:'16px'}}>Förderung berücksichtigen</h3>
+          <div style={{margin:'6px 0 12px 0'}}>
+            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
+              <input type="checkbox" checked={neutral} onChange={(e)=>setNeutral(e.target.checked)} />
+              Neutral (nur Preis ohne Abzüge in PDF)
+            </label>
+          </div>
           <label style={{display:'block',marginBottom:'6px'}}> 
             <input type="checkbox" checked={foerderungen.pflegegeld} onChange={() => toggleFoerd("pflegegeld")} /> Pflegegeld ({formatEUR(result.pflegegeldSum || 0)})
           </label>
