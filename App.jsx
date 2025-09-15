@@ -12,7 +12,7 @@ import angebotTemplateRaw from "./angebotstemplate.html?raw";
 const CONFIG = {
   waehrung: "EUR",
   fixpreis: 2299,
-  pflegestufe1: { 0: 70, 1: 110, 2: 150, 3: 190, 4: 230, 5: 270 },
+  pflegestufe1: { 0: 70, 1: 120, 2: 170, 3: 220, 4: 270, 5: 320 },
   pflegestufe2: { 0: 300, 1: 350, 2: 400, 3: 450, 4: 500, 5: 550 },
   zuschlaege: {
     nachteinsaetze: 200,
