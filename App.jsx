@@ -191,6 +191,8 @@ export default function HelpCareRechner() {
       steuererleichterung: isNeutral ? "" : ("- " + formatEUR(steuerAmount)),
       preisMitFoerderung: isNeutral ? formatEUR(CONFIG.fixpreis + (Number(anforderungen) || 0)) : formatEUR(result.mitFoerderung),
       neutralDeductionsHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      standardSectionHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      neutralSectionHidden: isNeutral ? "" : "hidden=\"hidden\"",
     });
 
      const html = await inlineExternalImages(rawHtml);
