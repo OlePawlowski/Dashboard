@@ -535,7 +535,7 @@ end`};i.events.push(["putFont",function(p){(function(b){var U=b.font,B=b.out,Q=b
     </table>
     
     <div style="background-color:rgba(245, 241, 235, 0.8); padding:15px; border:2px solid #f78060; border-radius:8px; text-align:center; margin-top:20px;">
-      <strong>Potentieller persönlicher Eigenanteil pro Monat*</strong><br>
+      <strong>Möglicher Eigenanteil pro Monat*</strong><br>
       <span style="font-size:24px; font-weight:bold; color:#f78060;">{preisMitFoerderung}</span>
     </div>
   </div>
