@@ -506,9 +506,18 @@ end`};i.events.push(["putFont",function(p){(function(b){var U=b.font,B=b.out,Q=b
   <!-- SVG Hintergrund für diesen Bereich -->
 
   <div style="padding:20px; border-radius:8px; margin-bottom:25px; position: relative;">
-    <h2 style="color:#f78060; font-size:22px; margin:0 0 10px 0;">Monatlichen Betreuungskosten: <span>{globalPrice}</span></h2>
-    <p style="margin:0 0 15px 0; display: none;">für die von Ihnen gewählten Optionen aus dem Fragebogen</p>
-    <div style="font-size:24px; font-weight:bold; margin:10px 0;"></div>
+    <h2 style="color:#f78060; font-size:22px; margin:0 0 10px 0;">Monatliche Betreuungskosten</h2>
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:10px 0;">
+      <tr>
+        <td style="padding:8px 0;">Grundpreis</td>
+        <td style="padding:8px 0; text-align:right; font-weight:bold;">{basePrice}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;">zzgl. Anforderungen</td>
+        <td style="padding:8px 0; text-align:right; font-weight:bold;">{requirementsPrice}</td>
+      </tr>
+    </table>
+    <div style="font-size:14px; color:#666; margin-bottom:8px;">Summe: <strong>{globalPrice}</strong></div>
     
     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:20px 0; {neutralDeductionsHidden}">
       <tr>
@@ -526,7 +535,7 @@ end`};i.events.push(["putFont",function(p){(function(b){var U=b.font,B=b.out,Q=b
     </table>
     
     <div style="background-color:rgba(245, 241, 235, 0.8); padding:15px; border:2px solid #f78060; border-radius:8px; text-align:center; margin-top:20px;">
-      <strong>Möglicher Eigenanteil pro Monat*</strong><br>
+      <strong>Potentieller persönlicher Eigenanteil pro Monat*</strong><br>
       <span style="font-size:24px; font-weight:bold; color:#f78060;">{preisMitFoerderung}</span>
     </div>
   </div>
@@ -535,8 +544,7 @@ end`};i.events.push(["putFont",function(p){(function(b){var U=b.font,B=b.out,Q=b
             <h3 style="color:#333; font-size:18px; margin:25px 0 15px 0;">Wiederkehrende Reisekosten bei Personalwechsel</h3>
             <p style="margin:0 0 25px 0; line-height:1.6;">Je nach Entfernung und Fahrverbindung fallen für die An- und Abreise ihrer Betreuungskräfte Reisekosten an. Über die Höhe der jeweils zu tragenden Reisekosten informieren wir Sie nach erfolgter Reisebuchung.</p>
             
-            <h3 style="color:#333; font-size:18px; margin:25px 0 15px 0;">Einmalige Vermittlungsgebühr</h3>
-            <p style="margin:0 0 25px 0; line-height:1.6;">Nach erfolgter Anreise der ersten Betreuungskraft, stellt HelpCare eine Bearbeitungsgebühr von <strong>359,00 €</strong> in Rechnung.</p>
+            
             
             <p style="margin:0 0 25px 0; line-height:1.6;">Es gelten unsere Allgemeinen Geschäftsbedingungen. Diese finden Sie auf unserer Website:
             <a href="https://www.helpcare.de/agb" target="_blank" style="color:#f78060; text-decoration:underline;">https://www.helpcare.de/agb</a></p>
