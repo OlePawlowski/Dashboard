@@ -221,7 +221,8 @@ export default function HelpCareRechner() {
       // Save (download)
       await instance.save();
       // Store last generated PDF in window for optional email send
-      window.__lastOfferPdfBase64 = `data:application/pdf;base64,${base64}`;
+      const key = variant === 'neutral' ? '__lastOfferPdfBase64_neutral' : '__lastOfferPdfBase64_standard';
+      window[key] = `data:application/pdf;base64,${base64}`;
       return;
     } catch (err) {
       // Fallback auf Druckdialog
@@ -252,17 +253,61 @@ export default function HelpCareRechner() {
     // if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   }
 
-  async function sendOfferEmail() {
+  async function createPdfBase64(variant = 'standard') {
+    const datum = new Date().toLocaleDateString("de-DE");
+    const nameParts = (name || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    const personsSelected = result.personsSelected;
+    const pflegegeldAmount = foerderungen.pflegegeld ? result.pflegegeldSum : 0;
+    const verhinderungAmount = foerderungen.verhinderung ? CONFIG.foerderung.verhinderung * personsSelected : 0;
+    const steuerAmount = foerderungen.steuer ? CONFIG.foerderung.steuer * personsSelected : 0;
+
+    const isNeutral = String(variant) === 'neutral';
+    const rawHtml = buildHTMLFromAngebotTemplate({
+      firstName: firstName || "–",
+      lastName: lastName || "–",
+      personsSelected: personsSelected,
+      globalPrice: formatEUR(result.netto),
+      anforderungenPreis: formatEUR(Number(anforderungen) || 0),
+      pflegegeldRabat: isNeutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
+      verhinderungspflege: isNeutral ? "" : ("- " + formatEUR(verhinderungAmount)),
+      steuererleichterung: isNeutral ? "" : ("- " + formatEUR(steuerAmount)),
+      preisMitFoerderung: isNeutral ? formatEUR(CONFIG.fixpreis + (Number(anforderungen) || 0)) : formatEUR(result.mitFoerderung),
+      neutralDeductionsHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      standardSectionHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      neutralSectionHidden: isNeutral ? "" : "hidden=\"hidden\"",
+    });
+    const html = await inlineExternalImages(rawHtml);
+    const filenameSafeName = (name || "Angebot").replace(/[^a-zA-Z0-9_\-ÄÖÜäöüß ]+/g, "").trim() || "Angebot";
+    const filename = `HelpCare-Angebot_${filenameSafeName}_${datum}.pdf`;
+    const options = {
+      margin:       [10, 10, 10, 10],
+      filename,
+      image:        { type: "jpeg", quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, allowTaint: true, dpi: 192, letterRendering: true },
+      jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak:    { mode: ["css", "legacy"], avoid: [".no-break"] },
+    };
+    const instance = html2pdf().set(options).from(html);
+    const pdfBlob = await instance.outputPdf('blob');
+    const arrayBuf = await pdfBlob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuf);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
+    return `data:application/pdf;base64,${base64}`;
+  }
+
+  async function sendOfferEmail(variant = 'standard') {
     try {
-      if (!window.__lastOfferPdfBase64) {
-        await handleCreatePDF();
-      }
+      const pdfDataUri = await createPdfBase64(variant);
       const to = (email || '').trim();
       if (!to) { alert('Bitte E‑Mail im Formular angeben.'); return; }
       const payload = {
         to,
         filename: 'Angebot.pdf',
-        pdf_base64: window.__lastOfferPdfBase64,
+        pdf_base64: pdfDataUri,
         sms_number: (telefon || '').trim(),
         sms_name: (name || '').trim()
       };
@@ -371,7 +416,8 @@ export default function HelpCareRechner() {
             <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
               <button onClick={()=>handleCreatePDF('standard')}>PDF (Standard)</button>
               <button onClick={()=>handleCreatePDF('neutral')} style={{background:'#f78060'}}>PDF (Neutral)</button>
-              <button onClick={sendOfferEmail} style={{background:'#2c2c2c'}}>Per E‑Mail senden</button>
+              <button onClick={()=>sendOfferEmail('standard')} style={{background:'#2c2c2c'}}>E‑Mail (Standard)</button>
+              <button onClick={()=>sendOfferEmail('neutral')} style={{background:'#444'}}>E‑Mail (Neutral)</button>
             </div>
           </div>
         </aside>
