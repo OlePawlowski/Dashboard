@@ -12,7 +12,7 @@ import angebotTemplateRaw from "./angebotstemplate.html?raw";
 const CONFIG = {
   waehrung: "EUR",
   fixpreis: 2299,
-  pflegestufe1: { 0: 70, 1: 110, 2: 150, 3: 190, 4: 230, 5: 270 },
+  pflegestufe1: { 0: 70, 1: 120, 2: 170, 3: 220, 4: 270, 5: 320 },
   pflegestufe2: { 0: 300, 1: 350, 2: 400, 3: 450, 4: 500, 5: 550 },
   zuschlaege: {
     nachteinsaetze: 200,
@@ -41,7 +41,7 @@ export default function HelpCareRechner() {
   const [foerderungen, setFoerderungen] = useState({ pflegegeld: true, steuer: false, verhinderung: false });
   const [twoPersons, setTwoPersons] = useState(false);
   const [manualDiscount, setManualDiscount] = useState(0);
-  const [neutral, setNeutral] = useState(false);
+  const [anforderungen, setAnforderungen] = useState(0);
 
   const result = useMemo(() => {
     let basis = CONFIG.fixpreis;
@@ -167,7 +167,7 @@ export default function HelpCareRechner() {
     }
   }
 
-  async function handleCreatePDF() {
+  async function handleCreatePDF(variant = 'standard') {
     const datum = new Date().toLocaleDateString("de-DE");
     const nameParts = (name || "").trim().split(/\s+/);
     const firstName = nameParts[0] || "";
@@ -177,17 +177,22 @@ export default function HelpCareRechner() {
     const verhinderungAmount = foerderungen.verhinderung ? CONFIG.foerderung.verhinderung * personsSelected : 0;
     const steuerAmount = foerderungen.steuer ? CONFIG.foerderung.steuer * personsSelected : 0;
 
+    const isNeutral = String(variant) === 'neutral';
+
     // Belege die Platzhalter des HTML-Templates
    const rawHtml = buildHTMLFromAngebotTemplate({
       firstName: firstName || "–",
       lastName: lastName || "–",
       personsSelected: personsSelected,
       globalPrice: formatEUR(result.netto),
-      pflegegeldRabat: neutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
-      verhinderungspflege: neutral ? "" : ("- " + formatEUR(verhinderungAmount)),
-      steuererleichterung: neutral ? "" : ("- " + formatEUR(steuerAmount)),
-      preisMitFoerderung: neutral ? formatEUR(result.netto) : formatEUR(result.mitFoerderung),
-      neutralDeductionsHidden: neutral ? "display:none;" : "",
+      anforderungenPreis: formatEUR(Number(anforderungen) || 0),
+      pflegegeldRabat: isNeutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
+      verhinderungspflege: isNeutral ? "" : ("- " + formatEUR(verhinderungAmount)),
+      steuererleichterung: isNeutral ? "" : ("- " + formatEUR(steuerAmount)),
+      preisMitFoerderung: isNeutral ? formatEUR(CONFIG.fixpreis + (Number(anforderungen) || 0)) : formatEUR(result.mitFoerderung),
+      neutralDeductionsHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      standardSectionHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      neutralSectionHidden: isNeutral ? "" : "hidden=\"hidden\"",
     });
 
      const html = await inlineExternalImages(rawHtml);
@@ -216,7 +221,8 @@ export default function HelpCareRechner() {
       // Save (download)
       await instance.save();
       // Store last generated PDF in window for optional email send
-      window.__lastOfferPdfBase64 = `data:application/pdf;base64,${base64}`;
+      const key = variant === 'neutral' ? '__lastOfferPdfBase64_neutral' : '__lastOfferPdfBase64_standard';
+      window[key] = `data:application/pdf;base64,${base64}`;
       return;
     } catch (err) {
       // Fallback auf Druckdialog
@@ -247,17 +253,61 @@ export default function HelpCareRechner() {
     // if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   }
 
-  async function sendOfferEmail() {
+  async function createPdfBase64(variant = 'standard') {
+    const datum = new Date().toLocaleDateString("de-DE");
+    const nameParts = (name || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    const personsSelected = result.personsSelected;
+    const pflegegeldAmount = foerderungen.pflegegeld ? result.pflegegeldSum : 0;
+    const verhinderungAmount = foerderungen.verhinderung ? CONFIG.foerderung.verhinderung * personsSelected : 0;
+    const steuerAmount = foerderungen.steuer ? CONFIG.foerderung.steuer * personsSelected : 0;
+
+    const isNeutral = String(variant) === 'neutral';
+    const rawHtml = buildHTMLFromAngebotTemplate({
+      firstName: firstName || "–",
+      lastName: lastName || "–",
+      personsSelected: personsSelected,
+      globalPrice: formatEUR(result.netto),
+      anforderungenPreis: formatEUR(Number(anforderungen) || 0),
+      pflegegeldRabat: isNeutral ? "" : ("- " + formatEUR(pflegegeldAmount)),
+      verhinderungspflege: isNeutral ? "" : ("- " + formatEUR(verhinderungAmount)),
+      steuererleichterung: isNeutral ? "" : ("- " + formatEUR(steuerAmount)),
+      preisMitFoerderung: isNeutral ? formatEUR(CONFIG.fixpreis + (Number(anforderungen) || 0)) : formatEUR(result.mitFoerderung),
+      neutralDeductionsHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      standardSectionHidden: isNeutral ? "hidden=\"hidden\"" : "",
+      neutralSectionHidden: isNeutral ? "" : "hidden=\"hidden\"",
+    });
+    const html = await inlineExternalImages(rawHtml);
+    const filenameSafeName = (name || "Angebot").replace(/[^a-zA-Z0-9_\-ÄÖÜäöüß ]+/g, "").trim() || "Angebot";
+    const filename = `HelpCare-Angebot_${filenameSafeName}_${datum}.pdf`;
+    const options = {
+      margin:       [10, 10, 10, 10],
+      filename,
+      image:        { type: "jpeg", quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, allowTaint: true, dpi: 192, letterRendering: true },
+      jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak:    { mode: ["css", "legacy"], avoid: [".no-break"] },
+    };
+    const instance = html2pdf().set(options).from(html);
+    const pdfBlob = await instance.outputPdf('blob');
+    const arrayBuf = await pdfBlob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuf);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
+    return `data:application/pdf;base64,${base64}`;
+  }
+
+  async function sendOfferEmail(variant = 'standard') {
     try {
-      if (!window.__lastOfferPdfBase64) {
-        await handleCreatePDF();
-      }
+      const pdfDataUri = await createPdfBase64(variant);
       const to = (email || '').trim();
       if (!to) { alert('Bitte E‑Mail im Formular angeben.'); return; }
       const payload = {
         to,
         filename: 'Angebot.pdf',
-        pdf_base64: window.__lastOfferPdfBase64,
+        pdf_base64: pdfDataUri,
         sms_number: (telefon || '').trim(),
         sms_name: (name || '').trim()
       };
@@ -333,15 +383,15 @@ export default function HelpCareRechner() {
             ))}
           </select>
 
+          <label className="section-title" style={{fontWeight:600}}>Anforderungen (€/Monat)</label>
+          <input type="number" className="input" style={{marginBottom:'12px'}} value={anforderungen} onChange={(e) => setAnforderungen(Number(e.target.value || 0))} />
+
           <label className="section-title" style={{fontWeight:600}}>Manueller Rabatt (€/Monat)</label>
           <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
 
           <h3 className="section-title" style={{marginTop:'16px'}}>Förderung berücksichtigen</h3>
           <div style={{margin:'6px 0 12px 0'}}>
-            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
-              <input type="checkbox" checked={neutral} onChange={(e)=>setNeutral(e.target.checked)} />
-              Neutral (nur Preis ohne Abzüge in PDF)
-            </label>
+            <span className="text-slate-600" style={{fontSize:'14px'}}>Wähle die Zuschüsse für die Standard-Variante. Für die neutrale Variante werden keine Abzüge ausgewiesen.</span>
           </div>
           <label style={{display:'block',marginBottom:'6px'}}> 
             <input type="checkbox" checked={foerderungen.pflegegeld} onChange={() => toggleFoerd("pflegegeld")} /> Pflegegeld ({formatEUR(result.pflegegeldSum || 0)})
@@ -363,9 +413,11 @@ export default function HelpCareRechner() {
           </div>
 
           <div style={{marginTop:'12px',display:'grid',gap:'8px'}}>
-            <div style={{display:'flex',gap:'8px'}}>
-              <button onClick={handleCreatePDF}>PDF erzeugen</button>
-              <button onClick={sendOfferEmail} style={{background:'#2c2c2c'}}>Per E‑Mail senden</button>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              <button onClick={()=>handleCreatePDF('standard')}>PDF (Standard)</button>
+              <button onClick={()=>handleCreatePDF('neutral')} style={{background:'#f78060'}}>PDF (Neutral)</button>
+              <button onClick={()=>sendOfferEmail('standard')} style={{background:'#2c2c2c'}}>E‑Mail (Standard)</button>
+              <button onClick={()=>sendOfferEmail('neutral')} style={{background:'#444'}}>E‑Mail (Neutral)</button>
             </div>
           </div>
         </aside>
