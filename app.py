@@ -48,11 +48,15 @@ with app.app_context():
 
 # 👥 Benutzer (Session-basierter Zugang für aktuelles Template)
 USERS = {}
-for i in range(1, 4):
-    name = os.getenv(f"USER_{i}_NAME")
-    pw = os.getenv(f"USER_{i}_PASS")
-    if name and pw:
-        USERS[name] = pw
+# Dynamisch alle USER_*_NAME / USER_*_PASS laden
+for key, value in os.environ.items():
+    # Suche nach Paarkeys USER_<X>_NAME
+    if key.startswith('USER_') and key.endswith('_NAME'):
+        suffix = key[len('USER_'):-len('_NAME')]
+        name = value
+        pw = os.getenv(f"USER_{suffix}_PASS")
+        if name and pw:
+            USERS[name] = pw
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 SEND_SCOPES = ['https://www.googleapis.com/auth/gmail.send']

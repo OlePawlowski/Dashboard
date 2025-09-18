@@ -3,17 +3,17 @@ services:
   dashboard:
     build: .
     container_name: helpcare-dashboard
+    env_file:
+      - .env
     environment:
-      - PORT=8000
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-me}
       - APP_DATA_DIR=/data
       # Optional: DATABASE_URL for Postgres, sonst SQLite in /data/app.db
       # - DATABASE_URL=postgresql://user:pass@host:5432/dbname
       # Optional: GOOGLE OAuth etc.
       # - GOOGLE_CLIENT_CONFIG_JSON=...
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:${PORT:-8000}"
     volumes:
       - ./data:/data
     restart: unless-stopped
-    command: bash -lc "exec gunicorn app:app -b 0.0.0.0:${PORT}"
+    command: bash -lc "exec gunicorn app:app -b 0.0.0.0:${PORT:-8000}"
