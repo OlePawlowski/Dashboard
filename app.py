@@ -20,12 +20,19 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback")
 
+# 📦 Persistente Ablage – Basisverzeichnis (standard: ./data)
+APP_DATA_DIR = os.getenv('APP_DATA_DIR') or os.path.join(os.getcwd(), 'data')
+os.makedirs(APP_DATA_DIR, exist_ok=True)
+
 # Hinter Proxy (Railway) korrekte Host/Proto übernehmen
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
-# DB-Config (SQLite default, Postgres via DATABASE_URL)
-database_url = os.getenv("DATABASE_URL", "sqlite:///app.db")
+# DB-Config (SQLite default im APP_DATA_DIR, Postgres via DATABASE_URL)
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    sqlite_path = os.path.join(APP_DATA_DIR, 'app.db')
+    database_url = f"sqlite:///{sqlite_path}"
 # Heroku-Style postgres:// → postgresql://
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -242,7 +249,7 @@ def dashboard():
     return render_template("index.html", aktuelles_datum=aktuelles_datum, username=username)
 
 # 📄 PDF Ablage – Konfiguration
-UPLOAD_FOLDER = os.getenv('PDF_UPLOAD_DIR', os.path.join(os.getcwd(), 'uploaded_pdfs'))
+UPLOAD_FOLDER = os.getenv('PDF_UPLOAD_DIR') or os.path.join(APP_DATA_DIR, 'uploaded_pdfs')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_PDF_EXTENSIONS = {'.pdf'}
 
@@ -524,7 +531,7 @@ def chatwoot_webhook():
     }
 
     try:
-        with open("chatwoot_messages.json", "r") as f:
+        with open(os.path.join(APP_DATA_DIR, "chatwoot_messages.json"), "r") as f:
             messages = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         messages = []
@@ -532,7 +539,7 @@ def chatwoot_webhook():
     messages.insert(0, new_message)
     messages = messages[:100]
 
-    with open("chatwoot_messages.json", "w") as f:
+    with open(os.path.join(APP_DATA_DIR, "chatwoot_messages.json"), "w") as f:
         json.dump(messages, f, indent=2)
 
     return jsonify({"success": True})
@@ -542,7 +549,7 @@ def chatwoot_webhook():
 @app.route("/api/whatsapp-messages")
 def whatsapp_messages():
     try:
-        with open("chatwoot_messages.json", "r") as f:
+        with open(os.path.join(APP_DATA_DIR, "chatwoot_messages.json"), "r") as f:
             messages = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         messages = []
