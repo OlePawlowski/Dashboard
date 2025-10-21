@@ -326,41 +326,45 @@ export default function HelpCareRechner() {
 
   return (
     <div className="wrap">
-      <h1 className="section-title" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <span>HelpCare Angebotsrechner</span>
-        <a href="https://helpcare.de" target="_blank" rel="noreferrer" style={{textDecoration:'none',color:'var(--brand-primary)',fontWeight:700}}>HelpCare</a>
-      </h1>
-
       <div className="grid">
-        <section className="panel" style={{padding:'16px'}}>
+        <section className="panel" style={{padding:'20px'}}>
           <h2 className="section-title">Kundendaten</h2>
-          <div style={{display:'grid',gap:'12px',marginBottom:'12px'}}>
+          <div style={{display:'grid',gap:'12px',marginBottom:'16px'}}>
             <input className="input" placeholder="Name" value={name} onChange={(e)=>setName(e.target.value)} />
             <input className="input" placeholder="E‑Mail" value={email} onChange={(e)=>setEmail(e.target.value)} />
             <input className="input" placeholder="Telefon" value={telefon} onChange={(e)=>setTelefon(e.target.value)} />
           </div>
 
           <h2 className="section-title">Kriterien</h2>
-          <div style={{marginBottom:'8px'}}>
-            <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
+          <div style={{marginBottom:'14px'}}>
+            <label style={{display:'inline-flex',gap:'8px',alignItems:'center',fontWeight:600}}>
               <input type="checkbox" checked={twoPersons} onChange={(e) => setTwoPersons(e.target.checked)} />
               Zwei Personen berücksichtigen
             </label>
           </div>
 
-          <label className="section-title" style={{fontWeight:600}}>Pflegestufe Person 1</label>
-          <select value={pflegestufe1} onChange={(e) => setPflegestufe1(Number(e.target.value))} className="input" style={{marginBottom:'12px'}}>
-            {Object.keys(CONFIG.pflegestufe1).map((key) => (
-              <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe1[key]}€)</option>
-            ))}
-          </select>
-
-          <label className="section-title" style={{fontWeight:600}}>Pflegestufe Person 2</label>
-          <select value={pflegestufe2} onChange={(e) => setPflegestufe2(Number(e.target.value))} className="input" style={{marginBottom:'12px'}} disabled={!twoPersons}>
-            {Object.keys(CONFIG.pflegestufe2).map((key) => (
-              <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe2[key]}€)</option>
-            ))}
-          </select>
+          <div style={{display:'grid',gap:'10px',marginBottom:'16px'}}>
+            <div>
+              <div style={{fontWeight:700, fontSize:'14px', marginBottom:'6px'}}>Pflegestufe Person 1</div>
+              <select value={pflegestufe1} onChange={(e) => setPflegestufe1(Number(e.target.value))} className="input">
+                {Object.keys(CONFIG.pflegestufe1).map((key) => (
+                  <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe1[key]}€)</option>
+                ))}
+              </select>
+            </div>
+            {twoPersons ? (
+              <div>
+                <div style={{fontWeight:700, fontSize:'14px', marginBottom:'6px'}}>Pflegestufe Person 2</div>
+                <select value={pflegestufe2} onChange={(e) => setPflegestufe2(Number(e.target.value))} className="input">
+                  {Object.keys(CONFIG.pflegestufe2).map((key) => (
+                    <option key={key} value={key}>Stufe {key} (+{CONFIG.pflegestufe2[key]}€)</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div style={{fontSize:'12px', color:'#64748b'}}>Aktiviere „Zwei Personen berücksichtigen“, um Pflegestufe Person 2 festzulegen.</div>
+            )}
+          </div>
 
           <div style={{marginBottom:'12px'}}>
             <label style={{display:'inline-flex',gap:'8px',alignItems:'center'}}>
@@ -376,18 +380,24 @@ export default function HelpCareRechner() {
             </label>
           </div>
 
-          <label className="section-title" style={{fontWeight:600}}>Deutschkenntnisse</label>
-          <select value={deutsch} onChange={(e) => setDeutsch(e.target.value)} className="input" style={{marginBottom:'12px'}}>
-            {Object.keys(CONFIG.zuschlaege.deutsch).map((key) => (
-              <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
-            ))}
-          </select>
-
-          <label className="section-title" style={{fontWeight:600}}>Anforderungen (€/Monat)</label>
-          <input type="number" className="input" style={{marginBottom:'12px'}} value={anforderungen} onChange={(e) => setAnforderungen(Number(e.target.value || 0))} />
-
-          <label className="section-title" style={{fontWeight:600}}>Manueller Rabatt (€/Monat)</label>
-          <input type="number" className="input" style={{marginBottom:'12px'}} value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
+          <div style={{display:'grid',gap:'10px',marginBottom:'16px'}}>
+            <div>
+              <div style={{fontWeight:700, fontSize:'14px', marginBottom:'6px'}}>Deutschkenntnisse</div>
+              <select value={deutsch} onChange={(e) => setDeutsch(e.target.value)} className="input">
+                {Object.keys(CONFIG.zuschlaege.deutsch).map((key) => (
+                  <option key={key} value={key}>{key} (+{CONFIG.zuschlaege.deutsch[key]}€)</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={{fontWeight:700, fontSize:'14px', marginBottom:'6px'}}>Anforderungen (€/Monat)</div>
+              <input type="number" className="input" value={anforderungen} onChange={(e) => setAnforderungen(Number(e.target.value || 0))} />
+            </div>
+            <div>
+              <div style={{fontWeight:700, fontSize:'14px', marginBottom:'6px'}}>Manueller Rabatt (€/Monat)</div>
+              <input type="number" className="input" value={manualDiscount} onChange={(e) => setManualDiscount(Number(e.target.value || 0))} />
+            </div>
+          </div>
 
           <h3 className="section-title" style={{marginTop:'16px'}}>Förderung berücksichtigen</h3>
           <div style={{margin:'6px 0 12px 0'}}>
@@ -404,20 +414,22 @@ export default function HelpCareRechner() {
           </label>
         </section>
 
-        <aside className="panel" style={{padding:'16px'}}>
+        <aside className="panel" style={{padding:'20px'}}>
           <h2 className="section-title">Preisübersicht</h2>
-          <div style={{display:'grid',gap:'8px',fontSize:'14px'}}>
+          <div style={{display:'grid',gap:'10px',fontSize:'14px'}}>
             <Row label="Angebotspreis (Netto)" value={formatEUR(result.netto)} strong />
             <Row label="Förderung gesamt" value={"-" + formatEUR(result.foerd)} subtle />
             <Row label="Preis mit Förderung" value={formatEUR(result.mitFoerderung)} emphasize />
           </div>
 
-          <div style={{marginTop:'12px',display:'grid',gap:'8px'}}>
-            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
-              <button onClick={()=>handleCreatePDF('standard')}>PDF (Standard)</button>
-              <button onClick={()=>handleCreatePDF('neutral')} style={{background:'#f78060'}}>PDF (Neutral)</button>
-              <button onClick={()=>sendOfferEmail('standard')} style={{background:'#2c2c2c'}}>E‑Mail (Standard)</button>
-              <button onClick={()=>sendOfferEmail('neutral')} style={{background:'#444'}}>E‑Mail (Neutral)</button>
+          <div style={{marginTop:'16px',display:'grid',gap:'12px'}}>
+            <div>
+              <span style={{fontSize:'14px',fontWeight:700,marginRight:12}}>Variante</span>
+              <VariantToggle />
+            </div>
+            <div style={{display:'flex',gap:'10px'}}>
+              <button style={{flex:1}} onClick={()=>handleCreatePDF(window.__variantChoice || 'standard')}>Herunterladen</button>
+              <button style={{flex:1,background:'#2c2c2c'}} onClick={()=>sendOfferEmail(window.__variantChoice || 'standard')}>Per E‑Mail senden</button>
             </div>
           </div>
         </aside>
@@ -431,6 +443,35 @@ function Row({ label, value, emphasize = false, strong = false, subtle = false }
     <div className="flex items-center justify-between">
       <span className={`text-slate-600 ${subtle ? "opacity-80" : ""}`}>{label}</span>
       <span className={strong ? "font-semibold text-slate-900" : (emphasize ? "font-medium text-slate-800" : "text-slate-800")}>{value}</span>
+    </div>
+  );
+}
+
+function VariantToggle() {
+  const [choice, setChoice] = useState('standard');
+  // expose global for button handlers to avoid prop drilling in this file
+  window.__variantChoice = choice;
+  const baseStyle = {
+    border: '1px solid var(--panel-border)',
+    borderRadius: 8,
+    padding: '4px',
+    display: 'inline-flex',
+    gap: '4px',
+    background: 'var(--panel-light)'
+  };
+  const btnStyle = (active) => ({
+    padding: '6px 10px',
+    borderRadius: 6,
+    fontWeight: 700,
+    background: active ? 'var(--brand-primary)' : '#ffffffc9',
+    color: active ? '#fff' : '#111',
+    border: 'none',
+    cursor: 'pointer'
+  });
+  return (
+    <div style={baseStyle}>
+      <button aria-pressed={choice==='standard'} onClick={()=>setChoice('standard')} style={btnStyle(choice==='standard')}>Standard</button>
+      <button aria-pressed={choice==='neutral'} onClick={()=>setChoice('neutral')} style={btnStyle(choice==='neutral')}>Neutral</button>
     </div>
   );
 }

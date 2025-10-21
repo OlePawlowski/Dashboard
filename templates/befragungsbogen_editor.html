@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Befragungsbogen Editor</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf_viewer.min.css" />
+  <style>
+    body{ margin:0; background:#f5f7fb; }
+    #viewerContainer{ position:fixed; inset:0; overflow:auto; padding-top:48px; }
+    #viewer{ min-height:100%; }
+    .toolbar{ position:fixed; top:8px; left:8px; right:8px; display:flex; gap:8px; z-index:10; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="zoomOut">−</button>
+    <button id="zoomIn">+</button>
+  </div>
+  <div id="viewerContainer">
+    <div id="viewer" class="pdfViewer"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf_viewer.min.js"></script>
+  <script>
+    const url = '/api/pdfs/open-template?name=Befragungsbogen';
+    const CMAP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/cmaps/';
+    const STANDARD_FONT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/standard_fonts/';
+
+    const eventBus = new pdfjsViewer.EventBus();
+    const container = document.getElementById('viewerContainer');
+    const viewerEl = document.getElementById('viewer');
+    const viewer = new pdfjsViewer.PDFViewer({
+      container,
+      eventBus,
+      textLayerMode: 1,
+      annotationMode: 2, // enable forms
+      enableScripting: true,
+      renderInteractiveForms: true,
+    });
+    const pdfLinkService = new pdfjsViewer.PDFLinkService({ eventBus, externalLinkTarget: 2 });
+    pdfLinkService.setViewer(viewer);
+    viewer.setLinkService(pdfLinkService);
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js';
+
+    async function open() {
+      const loadingTask = pdfjsLib.getDocument({ url, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STANDARD_FONT_URL });
+      const pdfDoc = await loadingTask.promise;
+      viewer.setDocument(pdfDoc);
+      pdfLinkService.setDocument(pdfDoc);
+      window._pdfDoc = pdfDoc;
+    }
+    open();
+
+    // Zoom
+    document.getElementById('zoomIn').addEventListener('click', ()=>{ viewer.currentScale = viewer.currentScale * 1.1; });
+    document.getElementById('zoomOut').addEventListener('click', ()=>{ viewer.currentScale = viewer.currentScale / 1.1; });
+
+    // Parent-Kommunikation: Formularwerte abrufen
+    window.addEventListener('message', async (e)=>{
+      const msg = e.data || {};
+      if (msg && msg.type === 'collectFormData'){
+        try{
+          const storage = window._pdfDoc && window._pdfDoc.annotationStorage;
+          const all = storage && storage.getAll ? storage.getAll() : {};
+          parent.postMessage({ type:'formData', fields: all || {} }, '*');
+        }catch(err){ parent.postMessage({ type:'formData', error: err?.message || 'unknown' }, '*'); }
+      }
+    });
+  </script>
+</body>
+</html>
+

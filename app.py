@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, url_for
+from flask import Flask, render_template, request, redirect, session, jsonify, url_for, send_file
 from flask_cors import CORS
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -9,10 +9,13 @@ from dotenv import load_dotenv
 import json
 import requests
 import uuid
-from models import db, User, Anfrage, TeamNote, GmailCredential, PdfDocument
+from models import db, User, Anfrage, TeamNote, GmailCredential, PdfDocument, Customer, Kooperationspartner, Caregiver
 from werkzeug.middleware.proxy_fix import ProxyFix
 from base64 import urlsafe_b64encode
+import base64
 from werkzeug.utils import secure_filename
+import queue
+import threading
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -45,6 +48,46 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    # Leichtgewichtige Migration: fehlende Spalten zu team_notes hinzufügen (SQLite)
+    try:
+        from sqlalchemy import text
+        with db.engine.connect() as conn:
+            insp = conn.execute(text("PRAGMA table_info(team_notes)")).fetchall()
+            cols = [row[1] for row in insp]
+            if 'parent_id' not in cols:
+                conn.execute(text("ALTER TABLE team_notes ADD COLUMN parent_id INTEGER"))
+            if 'reactions_json' not in cols:
+                conn.execute(text("ALTER TABLE team_notes ADD COLUMN reactions_json TEXT DEFAULT '[]'"))
+    except Exception:
+        pass
+    
+    # Migration für Customer-Tabelle: Neue Spalten hinzufügen (falls nicht vorhanden)
+    try:
+        from sqlalchemy import text
+        with db.engine.connect() as conn:
+            insp = conn.execute(text("PRAGMA table_info(customers)")).fetchall()
+            cols = [row[1] for row in insp]
+            if 'offer_data_json' not in cols:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN offer_data_json TEXT DEFAULT '{}'"))
+            if 'questionnaire_data_json' not in cols:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN questionnaire_data_json TEXT DEFAULT '{}'"))
+            if 'contact_history_json' not in cols:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN contact_history_json TEXT DEFAULT '[]'"))
+            
+            # Kooperationspartner-Tabelle erstellen falls nicht vorhanden
+            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='kooperationspartner'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    CREATE TABLE kooperationspartner (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(200) NOT NULL,
+                        email VARCHAR(200) NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+                print("✅ kooperationspartner Tabelle erstellt")
+    except Exception:
+        pass
 
 # 👥 Benutzer (Session-basierter Zugang für aktuelles Template)
 USERS = {}
@@ -231,6 +274,18 @@ def get_anfragen():
     anfragen = Anfrage.query.order_by(Anfrage.id.desc()).limit(100).all()
     return jsonify([a.to_dict() for a in anfragen])
 
+# 🗑️ Anfrage löschen
+@app.route('/api/anfragen/<int:anfrage_id>', methods=['DELETE'])
+def delete_anfrage(anfrage_id: int):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    a = Anfrage.query.get(anfrage_id)
+    if not a:
+        return jsonify({"error": "Nicht gefunden"}), 404
+    db.session.delete(a)
+    db.session.commit()
+    return jsonify({"success": True})
+
 # 🔐 Login (Session)
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -260,6 +315,34 @@ ALLOWED_PDF_EXTENSIONS = {'.pdf'}
 def _is_pdf_filename(name: str) -> bool:
     _, ext = os.path.splitext(name.lower())
     return ext in ALLOWED_PDF_EXTENSIONS
+
+# 🚀 Default-Vorlage (Befragungsbogen) einmalig importieren
+def _seed_befragungsbogen_template():
+    try:
+        # Bereits vorhanden?
+        existing = PdfDocument.query.filter(PdfDocument.filename.ilike('%Befragungsbogen%')).first()
+        if existing:
+            return
+        # Quelldatei im Projektverzeichnis
+        project_root = os.getcwd()
+        source_path = os.path.join(project_root, 'bedarfsfragebogen.pdf')
+        if not os.path.exists(source_path):
+            return
+        # In Upload-Ablage kopieren und in DB registrieren
+        unique_name = uuid.uuid4().hex + '.pdf'
+        dest_path = os.path.join(UPLOAD_FOLDER, unique_name)
+        with open(source_path, 'rb') as src, open(dest_path, 'wb') as dst:
+            dst.write(src.read())
+        doc = PdfDocument(filename='Befragungsbogen.pdf', stored_filename=unique_name, uploaded_by='system')
+        db.session.add(doc)
+        db.session.commit()
+    except Exception:
+        # Seed-Fehler sollen den App-Start nicht verhindern
+        pass
+
+# Seed beim App-Start innerhalb des App-Kontexts ausführen
+with app.app_context():
+    _seed_befragungsbogen_template()
 
 # 📄 Liste der PDFs
 @app.route('/api/pdfs', methods=['GET'])
@@ -301,40 +384,687 @@ def download_pdf(doc_id: int):
     path = os.path.join(UPLOAD_FOLDER, doc.stored_filename)
     if not os.path.exists(path):
         return jsonify({"error": "Datei fehlt auf dem Server"}), 410
-    from flask import send_file
     return send_file(path, as_attachment=True, download_name=doc.filename, mimetype='application/pdf')
+
+# 📄 PDF löschen (Datei + DB-Eintrag)
+@app.route('/api/pdfs/<int:doc_id>', methods=['DELETE'])
+def delete_pdf(doc_id: int):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    doc = PdfDocument.query.get(doc_id)
+    if not doc:
+        return jsonify({"error": "Nicht gefunden"}), 404
+    path = os.path.join(UPLOAD_FOLDER, doc.stored_filename)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        # Datei konnte ggf. nicht gelöscht werden – wir löschen dennoch den DB-Eintrag,
+        # um keine Waisen zu behalten. Der Fehler ist nicht kritisch.
+        pass
+    db.session.delete(doc)
+    db.session.commit()
+    return jsonify({"success": True})
+
+# 📄 PDF Template (z.B. Befragungsbogen) inline öffnen per Name-Suche
+@app.route('/api/pdfs/open-template')
+def open_template_pdf():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    name = (request.args.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "Parameter 'name' erforderlich"}), 400
+    # Finde die zuletzt hochgeladene PDF, deren Original-Dateiname den Namen enthält
+    q = PdfDocument.query.filter(PdfDocument.filename.ilike(f"%{name}%")).order_by(PdfDocument.id.desc()).first()
+    if not q:
+        # Fallback: zeige die zuletzt hochgeladene PDF
+        q = PdfDocument.query.order_by(PdfDocument.id.desc()).first()
+        if not q:
+            return jsonify({"error": f"Vorlage '{name}' nicht gefunden"}), 404
+    path = os.path.join(UPLOAD_FOLDER, q.stored_filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "Datei fehlt auf dem Server"}), 410
+    # Inline im Browser anzeigen (iframe-kompatibel)
+    return send_file(path, as_attachment=False, download_name=q.filename, mimetype='application/pdf')
+
+# 📧 Neueste Befragungsbogen-PDF direkt versenden
+@app.route('/api/send-latest-befragungsbogen', methods=['POST'])
+def send_latest_befragungsbogen():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    payload = request.get_json() or {}
+    to_email = (payload.get('to') or '').strip()
+    filename = (payload.get('filename') or 'Befragungsbogen.pdf').strip() or 'Befragungsbogen.pdf'
+    if not to_email:
+        return jsonify({"error": "Empfänger (to) erforderlich"}), 400
+
+    # Finde neueste PDF, deren Originalname 'Befragungsbogen' enthält, sonst letzte beliebige
+    doc = (
+        PdfDocument.query
+        .filter(PdfDocument.filename.ilike('%Befragungsbogen%'))
+        .order_by(PdfDocument.id.desc())
+        .first()
+    ) or PdfDocument.query.order_by(PdfDocument.id.desc()).first()
+    if not doc:
+        return jsonify({"error": "Kein Dokument vorhanden"}), 404
+
+    path = os.path.join(UPLOAD_FOLDER, doc.stored_filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "Datei fehlt auf dem Server"}), 410
+
+    # Datei lesen und base64 enkodieren
+    with open(path, 'rb') as f:
+        pdf_bytes = f.read()
+    pdf_b64 = base64.b64encode(pdf_bytes).decode('ascii')
+
+    # Reiche an bestehende Versandlogik weiter (Subject/Body optional aus Payload)
+    data = {
+        'to': to_email,
+        'filename': filename,
+        'pdf_base64': f'data:application/pdf;base64,{pdf_b64}',
+        'subject': payload.get('subject'),
+        'body': payload.get('body'),
+        'sms_number': payload.get('sms_number'),
+        'sms_name': payload.get('sms_name'),
+        'lastName': payload.get('lastName'),
+    }
+
+    # Nutze die gleiche Implementierung wie /api/send-offer, ohne HTTP-Hop
+    request_ctx_backup = request
+    try:
+        # Minimaler Inline-Aufruf der Logik aus send_offer
+        # (kopiert die Kernteile, um keine Request-Kontext-Probleme zu erzeugen)
+        creds = load_user_gmail_credentials(session['user'])
+        if not creds:
+            return jsonify({"error": "Kein Gmail-Konto verbunden."}), 400
+        service = build('gmail', 'v1', credentials=creds)
+
+        subject = data.get('subject') or "Befragungsbogen"
+        body = data.get('body') or (
+            "Hallo,\n\n" 
+            "anbei befindet sich der Befragungsbogen.\n\n"
+            "Mit besten Grüßen"
+        )
+        body_html_final = (
+            "<div style=\"font-family:Arial,Helvetica,sans-serif;white-space:pre-wrap\">" +
+            (body or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') +
+            "</div>"
+        )
+        body_text_final = body
+
+        mixed_boundary = 'mixed_boundary'
+        alt_boundary = 'alt_boundary'
+        parts = []
+        parts.append(f"Content-Type: multipart/mixed; boundary={mixed_boundary}\r\n")
+        parts.append("MIME-Version: 1.0\r\n")
+        parts.append(f"to: {to_email}\r\n")
+        parts.append(f"subject: {subject}\r\n\r\n")
+        parts.append(f"--{mixed_boundary}\r\n")
+        parts.append(f"Content-Type: multipart/alternative; boundary={alt_boundary}\r\n\r\n")
+        parts.append(f"--{alt_boundary}\r\n")
+        parts.append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+        parts.append(body_text_final + "\r\n\r\n")
+        parts.append(f"--{alt_boundary}\r\n")
+        parts.append("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+        parts.append(body_html_final + "\r\n\r\n")
+        parts.append(f"--{alt_boundary}--\r\n")
+        parts.append(f"--{mixed_boundary}\r\n")
+        parts.append(f"Content-Type: application/pdf; name={filename}\r\n")
+        parts.append("Content-Transfer-Encoding: base64\r\n")
+        parts.append(f"Content-Disposition: attachment; filename={filename}\r\n\r\n")
+        parts.append(pdf_b64 + "\r\n")
+        parts.append(f"--{mixed_boundary}--")
+        raw_message = ''.join(parts).encode('utf-8')
+        raw = urlsafe_b64encode(raw_message).decode('utf-8')
+        service.users().messages().send(userId='me', body={'raw': raw}).execute()
+        
+        # Kunde automatisch speichern mit Befragungsbogen-Daten
+        questionnaire_data = {
+            'subject': subject,
+            'body': body,
+            'filename': filename,
+            'lastName': data.get('lastName'),
+            'sms_name': data.get('sms_name'),
+            'sms_number': data.get('sms_number'),
+            'sent_at': datetime.datetime.utcnow().isoformat()
+        }
+        print(f"DEBUG: Speichere Befragungsbogen-Daten für {to_email}: {questionnaire_data}")
+        customer = save_customer_from_email(to_email, questionnaire_data=questionnaire_data)
+        print(f"DEBUG: Kunde gespeichert: {customer}")
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Senden fehlgeschlagen: {str(e)}"}), 500
+
+# 🧾 Editor-Seite für Befragungsbogen (pdf.js)
+@app.route('/befragungsbogen/editor')
+def befragungsbogen_editor():
+    if "user" not in session:
+        return redirect("/")
+    return render_template("befragungsbogen_editor.html")
+
+# 📄 1-Person Bedarfsfragebogen
+@app.route('/befragungsbogen/1-person')
+def befragungsbogen_1_person():
+    if "user" not in session:
+        return redirect("/")
+    path = os.path.join(os.path.dirname(__file__), 'templates', 'bedarfsfragebogen-1-person.html')
+    if not os.path.exists(path):
+        return "Datei nicht gefunden", 404
+    return send_file(path, mimetype='text/html')
+
+# 📄 2-Personen Bedarfsfragebogen
+@app.route('/befragungsbogen/2-personen')
+def befragungsbogen_2_personen():
+    if "user" not in session:
+        return redirect("/")
+    
+    # Kunden-ID aus Query-Parameter holen
+    customer_id = request.args.get('customer_id', '')
+    
+    path = os.path.join(os.path.dirname(__file__), 'templates', 'bedarfsfragebogen-2-personen.html')
+    if not os.path.exists(path):
+        return "Datei nicht gefunden", 404
+    
+    # Template mit Kunden-ID rendern
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Kunden-ID in den Titel einbetten
+    if customer_id:
+        content = content.replace(
+            '<h1 style="text-align: center;">Bedarfsfragebogen</h1>',
+            f'<h1 style="text-align: center;">Bedarfsfragebogen - Kunden-ID: {customer_id}</h1>'
+        )
+    
+    return content
+
+# 📄 Aktueller Bedarfsfragebogen (statisches HTML vom Projektroot)
+@app.route('/befragungsbogen/aktueller')
+def aktueller_bedarfsfragebogen():
+    if "user" not in session:
+        return redirect("/")
+    path = os.path.join(os.getcwd(), 'aktueller-bedarfsfragebogen.html')
+    if not os.path.exists(path):
+        return "Datei 'aktueller-bedarfsfragebogen.html' nicht gefunden.", 404
+    return send_file(path, mimetype='text/html')
+
+# -----------------
+# Betreuungskräfte
+# -----------------
+
+@app.route('/api/caregivers', methods=['GET'])
+def list_caregivers():
+    items = Caregiver.query.order_by(Caregiver.created_at.desc()).all()
+    return jsonify([c.to_dict() for c in items])
+
+@app.route('/api/caregivers', methods=['POST'])
+def create_caregiver():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    if not name or not email:
+        return jsonify({'error': 'Name und E-Mail sind erforderlich'}), 400
+    c = Caregiver(name=name, email=email, phone=phone)
+    db.session.add(c)
+    db.session.commit()
+    return jsonify(c.to_dict())
+
+@app.route('/api/caregivers/<int:cid>', methods=['PUT'])
+def update_caregiver(cid: int):
+    c = Caregiver.query.get(cid)
+    if not c:
+        return jsonify({'error': 'Nicht gefunden'}), 404
+    data = request.get_json() or {}
+    if 'name' in data: c.name = (data.get('name') or '').strip()
+    if 'email' in data: c.email = (data.get('email') or '').strip()
+    if 'phone' in data: c.phone = (data.get('phone') or '').strip()
+    if 'notes' in data: c.notes = data.get('notes')
+    db.session.commit()
+    return jsonify(c.to_dict())
+
+@app.route('/api/caregivers/<int:cid>', methods=['DELETE'])
+def delete_caregiver(cid: int):
+    c = Caregiver.query.get(cid)
+    if not c:
+        return jsonify({'error': 'Nicht gefunden'}), 404
+    db.session.delete(c)
+    db.session.commit()
+    return jsonify({'success': True})
+
+def refresh_zoho_token():
+    """Erneuert den Zoho Access Token mit dem Refresh Token"""
+    import requests, json as pyjson
+    
+    print(f"🔍 DEBUG: refresh_zoho_token aufgerufen")
+    
+    refresh_token = os.environ.get('ZOHO_SIGN_REFRESH_TOKEN')
+    client_id = os.environ.get('ZOHO_CLIENT_ID')
+    client_secret = os.environ.get('ZOHO_CLIENT_SECRET')
+    
+    print(f"🔍 DEBUG: refresh_token: {refresh_token}")
+    print(f"🔍 DEBUG: client_id: {client_id}")
+    print(f"🔍 DEBUG: client_secret: {client_secret}")
+    
+    if not all([refresh_token, client_id, client_secret]):
+        print(f"🔍 DEBUG: Fehlende Tokens!")
+        return None
+    
+    try:
+        url = 'https://accounts.zoho.eu/oauth/v2/token'
+        data = {
+            'refresh_token': refresh_token,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'grant_type': 'refresh_token'
+        }
+        
+        print(f"🔍 DEBUG: Sende Anfrage an: {url}")
+        print(f"🔍 DEBUG: Data: {data}")
+        
+        resp = requests.post(url, data=data, timeout=10)
+        print(f"🔍 DEBUG: Response Status: {resp.status_code}")
+        print(f"🔍 DEBUG: Response Text: {resp.text}")
+        
+        if resp.status_code == 200:
+            token_data = resp.json()
+            new_access_token = token_data.get('access_token')
+            if new_access_token:
+                # Token in Umgebungsvariable setzen (für diese Session)
+                os.environ['ZOHO_SIGN_ACCESS_TOKEN'] = new_access_token
+                print(f"✅ Zoho Token erfolgreich erneuert")
+                return new_access_token
+        else:
+            print(f"❌ Fehler beim Token-Refresh: Status {resp.status_code}")
+    except Exception as e:
+        print(f"❌ Fehler beim Token-Refresh: {e}")
+    
+    return None
+
+def get_zoho_access_token():
+    """Holt einen gültigen Zoho Access Token (erneuert bei Bedarf)"""
+    access_token = os.environ.get('ZOHO_SIGN_ACCESS_TOKEN')
+    
+    # Wenn kein Token vorhanden, versuche Refresh
+    if not access_token:
+        access_token = refresh_zoho_token()
+    
+    return access_token
+
+@app.route('/api/debug/zoho-token')
+def debug_zoho_token():
+    """Debug-Endpoint für Zoho Token"""
+    print(f"🔍 DEBUG: debug_zoho_token aufgerufen")
+    
+    # Teste refresh_zoho_token direkt
+    print(f"🔍 DEBUG: Teste refresh_zoho_token()")
+    refreshed_token = refresh_zoho_token()
+    print(f"🔍 DEBUG: refresh_zoho_token() Ergebnis: {refreshed_token}")
+    
+    access_token = get_zoho_access_token()
+    print(f"🔍 DEBUG: get_zoho_access_token() Ergebnis: {access_token}")
+    
+    return jsonify({
+        'access_token': access_token,
+        'refreshed_token': refreshed_token,
+        'has_refresh_token': bool(os.environ.get('ZOHO_SIGN_REFRESH_TOKEN')),
+        'has_client_id': bool(os.environ.get('ZOHO_CLIENT_ID')),
+        'has_client_secret': bool(os.environ.get('ZOHO_CLIENT_SECRET'))
+    })
+
+@app.route('/api/caregivers/<int:cid>/contract', methods=['POST'])
+def send_caregiver_contract(cid: int):
+    """Sendet einen Testvertrag zur digitalen Signatur über Zoho Sign und speichert die Response am Caregiver."""
+    print(f"🔍 DEBUG: send_caregiver_contract aufgerufen mit cid={cid}")
+    
+    c = Caregiver.query.get(cid)
+    if not c:
+        print(f"🔍 DEBUG: Betreuungskraft {cid} nicht gefunden")
+        return jsonify({'error': 'Betreuungskraft nicht gefunden'}), 404
+    
+    print(f"🔍 DEBUG: Betreuungskraft gefunden: {c.name} ({c.email})")
+    
+    payload = request.get_json() or {}
+    # Minimaler Testvertrag-Body
+    test_subject = payload.get('subject') or 'Testvertrag Betreuungskraft'
+    test_message = payload.get('message') or 'Bitte prüfen und digital unterschreiben.'
+
+    # Einfache HTML-Vorlage (kann später ersetzt werden)
+    html_content = payload.get('html') or f"""
+    <html><body>
+      <h2>Betreuungsvertrag ({test_subject})</h2>
+      <p>Name: {c.name}</p>
+      <p>E-Mail: {c.email}</p>
+      <p>Datum: {{today}}</p>
+      <p>Bitte unterschreiben Sie unten.</p>
+      <p>__________________________</p>
+      <p>Unterschrift: __________________________</p>
+      <p>Datum: __________________________</p>
+    </body></html>
+    """
+
+    # Zoho Sign: Erstellung eines Signaturantrags (via API)
+    import requests, base64, json as pyjson
+    
+    # Versuche zuerst Token aus Request, dann automatischen Refresh
+    access_token = payload.get('access_token') or get_zoho_access_token()
+    
+    if not access_token:
+        return jsonify({
+            'error': 'Zoho Access Token fehlt. Bitte setze folgende Umgebungsvariablen:\n'
+                    '- ZOHO_SIGN_REFRESH_TOKEN\n'
+                    '- ZOHO_CLIENT_ID\n'
+                    '- ZOHO_CLIENT_SECRET\n\n'
+                    'Oder gib einen Token im Request-Body an.'
+        }), 400
+
+    # Dokument aus HTML als Base64-PDF
+    html_b64 = base64.b64encode(html_content.encode('utf-8')).decode('utf-8')
+
+    # Zoho Sign API Request - korrekte Struktur basierend auf offizieller API
+    api_url = 'https://sign.zoho.eu/api/v1/requests'
+    headers = {
+        'Authorization': f'Zoho-oauthtoken {access_token}',
+        'Content-Type': 'application/json'
+    }
+    
+    # Korrekte Struktur für Zoho Sign API (mit requests Array)
+    req_body = {
+        'requests': [
+            {
+                'request_name': test_subject,
+                'actions': [
+                    {
+                        'recipient_name': c.name,
+                        'recipient_email': c.email,
+                        'action_type': 'SIGN'
+                    }
+                ],
+                'documents': [
+                    {
+                        'document_name': 'Vertrag.html',
+                        'document_data': html_b64
+                    }
+                ]
+            }
+        ]
+    }
+    
+    print(f"🔍 Debug: Korrekte Struktur: {pyjson.dumps(req_body, indent=2)}")
+    
+    # SCHRITT 1: Request erstellen mit form-data (nicht JSON!)
+    import io
+    
+    # JSON-Daten für form-data mit Signaturfeldern
+    request_data = {
+        "requests": {
+            "request_name": test_subject,
+            "actions": [
+                {
+                    "action_type": "SIGN",
+                    "recipient_email": c.email,
+                    "recipient_name": c.name,
+                    "signing_order": 1,
+                    "verify_recipient": False,
+                    "verification_type": "EMAIL",
+                    "verification_code": "",
+                    "private_notes": test_message,
+                }
+            ],
+            "expiration_days": 30,
+            "is_sequential": True,
+            "email_reminders": True,
+            "reminder_period": 7
+        }
+    }
+    
+    print(f"🔍 Debug: Request Data: {pyjson.dumps(request_data, indent=2)}")
+    
+    # Form-data vorbereiten
+    files = {
+        'file': ('Vertrag.html', io.BytesIO(html_content.encode('utf-8')), 'text/html')
+    }
+    
+    data = {
+        'data': pyjson.dumps(request_data)
+    }
+    
+    # Headers für form-data (nicht JSON!)
+    form_headers = {
+        'Authorization': f'Zoho-oauthtoken {access_token}'
+    }
+    
+    print(f"🔍 Debug: Erstelle Request mit form-data")
+    create_resp = requests.post(api_url, headers=form_headers, data=data, files=files, timeout=30)
+    
+    try:
+        create_json = create_resp.json()
+    except Exception:
+        create_json = {'status_code': create_resp.status_code, 'text': create_resp.text}
+    
+    print(f"🔍 Debug: Create Response: {create_json}")
+    
+    if create_resp.status_code >= 300:
+        return jsonify({'error': 'Zoho Sign Request-Erstellung fehlgeschlagen', 'response': create_json}), 502
+    
+    # SCHRITT 2: Request submiten
+    print(f"🔍 Debug: Create Response Structure: {create_json}")
+    
+    # Extrahiere request_id aus der Zoho Sign Antwort
+    request_id = None
+    if 'requests' in create_json and isinstance(create_json['requests'], dict):
+        request_id = create_json['requests'].get('request_id')
+    elif 'requests' in create_json and isinstance(create_json['requests'], list) and len(create_json['requests']) > 0:
+        request_id = create_json['requests'][0].get('request_id')
+    elif 'request_id' in create_json:
+        request_id = create_json['request_id']
+    elif 'id' in create_json:
+        request_id = create_json['id']
+    
+    print(f"🔍 Debug: Extrahierte Request ID: {request_id}")
+    
+    if not request_id:
+        return jsonify({'error': 'Request ID nicht erhalten', 'response': create_json}), 502
+    
+    # SCHRITT 2: Request submiten
+    submit_url = f'https://sign.zoho.eu/api/v1/requests/{request_id}/submit'
+    print(f"🔍 Debug: Submit URL: {submit_url}")
+    
+    # Submit-Headers (nur Authorization, kein Content-Type für Submit)
+    submit_headers = {
+        'Authorization': f'Zoho-oauthtoken {access_token}'
+    }
+    
+    submit_resp = requests.post(submit_url, headers=submit_headers, timeout=30)
+    
+    try:
+        submit_json = submit_resp.json()
+    except Exception:
+        submit_json = {'status_code': submit_resp.status_code, 'text': submit_resp.text}
+    
+    print(f"🔍 Debug: Submit Response: {submit_json}")
+    
+    if submit_resp.status_code >= 300:
+        return jsonify({'error': 'Zoho Sign Request-Submit fehlgeschlagen', 'response': submit_json}), 502
+    
+    # Erfolgreiche Antwort
+    resp_json = submit_json
+
+    # Response am Caregiver speichern
+    c.contract_data_json = pyjson.dumps(resp_json)
+    db.session.commit()
+    return jsonify({'success': True, 'response': resp_json, 'caregiver': c.to_dict()})
+
+# 📧 Befragungsbogen mit übergebenen Formularwerten ausfüllen, schreibschützen und versenden
+@app.route('/api/send-befragungsbogen-filled', methods=['POST'])
+def send_befragungsbogen_filled():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    payload = request.get_json() or {}
+    to_email = (payload.get('to') or '').strip()
+    filename = (payload.get('filename') or 'Befragungsbogen.pdf').strip() or 'Befragungsbogen.pdf'
+    fields = payload.get('fields') or {}
+    if not to_email:
+        return jsonify({"error": "Empfänger (to) erforderlich"}), 400
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except Exception as e:
+        return jsonify({"error": f"pypdf fehlt oder fehlerhaft: {str(e)}"}), 500
+
+    # Vorlage laden (neueste Befragungsbogen)
+    doc = (
+        PdfDocument.query
+        .filter(PdfDocument.filename.ilike('%Befragungsbogen%'))
+        .order_by(PdfDocument.id.desc())
+        .first()
+    ) or PdfDocument.query.order_by(PdfDocument.id.desc()).first()
+    if not doc:
+        return jsonify({"error": "Kein Dokument vorhanden"}), 404
+    path = os.path.join(UPLOAD_FOLDER, doc.stored_filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "Datei fehlt auf dem Server"}), 410
+
+    # PDF befüllen
+    try:
+        reader = PdfReader(path)
+        writer = PdfWriter()
+        writer.clone_document_from_reader(reader)
+        # Form-Felder pro Seite aktualisieren
+        for page in writer.pages:
+            try:
+                writer.update_page_form_field_values(page, fields)
+            except Exception:
+                pass
+        # Felder schreibgeschützt setzen
+        try:
+            acroform = writer._root_object.get('/AcroForm')
+            if acroform:
+                fields_array = acroform.get('/Fields') or []
+                for fld in fields_array:
+                    obj = fld.get_object()
+                    # /Ff Bit 1 (ReadOnly) setzen
+                    current = obj.get('/Ff', 0)
+                    obj.update({ '/Ff': int(current) | 1 })
+                # NeedAppearances deaktivieren
+                acroform.update({'/NeedAppearances': False})
+        except Exception:
+            pass
+        # In Memory schreiben
+        import io
+        out_buf = io.BytesIO()
+        writer.write(out_buf)
+        pdf_bytes = out_buf.getvalue()
+        pdf_b64 = base64.b64encode(pdf_bytes).decode('ascii')
+        # zusätzlich auf Server speichern
+        stored_name = uuid.uuid4().hex + '.pdf'
+        dest_path = os.path.join(UPLOAD_FOLDER, stored_name)
+        with open(dest_path, 'wb') as f:
+            f.write(pdf_bytes)
+        saved_doc = PdfDocument(filename=filename, stored_filename=stored_name, uploaded_by=session.get('user'))
+        db.session.add(saved_doc)
+        db.session.commit()
+    except Exception as e:
+        return jsonify({"error": f"PDF-Befüllung fehlgeschlagen: {str(e)}"}), 500
+
+    # E-Mail senden (bestehende Logik wiederverwenden)
+    try:
+        creds = load_user_gmail_credentials(session['user'])
+        if not creds:
+            return jsonify({"error": "Kein Gmail-Konto verbunden."}), 400
+        service = build('gmail', 'v1', credentials=creds)
+        subject = payload.get('subject') or "Befragungsbogen"
+        body = payload.get('body') or (
+            "Hallo,\n\n" 
+            "anbei befindet sich der Befragungsbogen.\n\n"
+            "Mit besten Grüßen"
+        )
+        # HTML/TXT
+        body_html_final = (
+            "<div style=\"font-family:Arial,Helvetica,sans-serif;white-space:pre-wrap\">" +
+            (body or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') +
+            "</div>"
+        )
+        body_text_final = body
+        mixed_boundary = 'mixed_boundary'
+        alt_boundary = 'alt_boundary'
+        parts = []
+        parts.append(f"Content-Type: multipart/mixed; boundary={mixed_boundary}\r\n")
+        parts.append("MIME-Version: 1.0\r\n")
+        parts.append(f"to: {to_email}\r\n")
+        parts.append(f"subject: {subject}\r\n\r\n")
+        parts.append(f"--{mixed_boundary}\r\n")
+        parts.append(f"Content-Type: multipart/alternative; boundary={alt_boundary}\r\n\r\n")
+        parts.append(f"--{alt_boundary}\r\n")
+        parts.append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+        parts.append(body_text_final + "\r\n\r\n")
+        parts.append(f"--{alt_boundary}\r\n")
+        parts.append("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+        parts.append(body_html_final + "\r\n\r\n")
+        parts.append(f"--{alt_boundary}--\r\n")
+        parts.append(f"--{mixed_boundary}\r\n")
+        parts.append(f"Content-Type: application/pdf; name={filename}\r\n")
+        parts.append("Content-Transfer-Encoding: base64\r\n")
+        parts.append(f"Content-Disposition: attachment; filename={filename}\r\n\r\n")
+        parts.append(pdf_b64 + "\r\n")
+        parts.append(f"--{mixed_boundary}--")
+        raw_message = ''.join(parts).encode('utf-8')
+        raw = urlsafe_b64encode(raw_message).decode('utf-8')
+        service.users().messages().send(userId='me', body={'raw': raw}).execute()
+        
+        # Kunde automatisch speichern mit Befragungsbogen-Daten (inkl. ausgefüllte Felder)
+        questionnaire_data = {
+            'subject': subject,
+            'body': body,
+            'filename': filename,
+            'fields': fields,  # Alle ausgefüllten Formularfelder
+            'sent_at': datetime.datetime.utcnow().isoformat()
+        }
+        save_customer_from_email(to_email, questionnaire_data=questionnaire_data)
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Senden fehlgeschlagen: {str(e)}"}), 500
 
 # 📧 Gmail API
 @app.route("/api/emails")
 def get_emails():
     if "user" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 401
-    # Support 3 slots by selecting the Nth most recent credential for the user
-    # slot=1 -> most recent, slot=2 -> second, slot=3 -> third
-    slot_param = request.args.get('slot', '1')
-    try:
-        slot_index = int(slot_param)
-    except Exception:
-        slot_index = 1
-    if slot_index < 1:
-        slot_index = 1
-    if slot_index > 3:
-        slot_index = 3
+    # Backward-compat: support either cred_id (preferred) or 1..3 slot index
+    cred_id_param = request.args.get('cred_id')
+    slot_param = request.args.get('slot')
 
     try:
-        cred_row = (
-            GmailCredential.query
-            .filter_by(username=session['user'])
-            .order_by(GmailCredential.id.desc())
-            .offset(slot_index - 1)
-            .first()
-        )
+        cred_row = None
+        if cred_id_param:
+            try:
+                cred_id_int = int(cred_id_param)
+            except Exception:
+                return jsonify({"error": "Ungültige cred_id"}), 400
+            cred_row = GmailCredential.query.filter_by(id=cred_id_int, username=session['user']).first()
         if not cred_row:
-            return jsonify({"error": "Kein Gmail-Konto für diesen Slot verbunden. Bitte verbinden."}), 400
+            # Fallback auf Slots 1..3
+            slot_index = 1
+            if slot_param is not None:
+                try:
+                    slot_index = int(slot_param)
+                except Exception:
+                    slot_index = 1
+            slot_index = max(1, min(3, slot_index))
+            cred_row = (
+                GmailCredential.query
+                .filter_by(username=session['user'])
+                .order_by(GmailCredential.id.desc())
+                .offset(slot_index - 1)
+                .first()
+            )
+        if not cred_row:
+            return jsonify({"error": "Kein Gmail-Konto verbunden. Bitte Postfach hinzufügen."}), 400
         token_data = json.loads(cred_row.token_json)
         creds = Credentials.from_authorized_user_info(token_data, SCOPES)
         service = build('gmail', 'v1', credentials=creds)
-        results = service.users().messages().list(userId='me', maxResults=5).execute()
+        results = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = results.get('messages', [])
     except Exception as e:
         return jsonify({"error": f"Fehler bei Gmail API: {str(e)}"}), 500
@@ -347,11 +1077,115 @@ def get_emails():
             "from": next((h['value'] for h in headers if h['name'] == 'From'), 'Unbekannt'),
             "subject": next((h['value'] for h in headers if h['name'] == 'Subject'), '(Kein Betreff)'),
             "time": datetime.datetime.fromtimestamp(
-                int(msg_data['internalDate']) / 1000).strftime('%d.%m.%Y – %H:%M')
+                int(msg_data['internalDate']) / 1000).strftime('%d.%m.%Y – %H:%M'),
+            "snippet": msg_data.get('snippet', ''),
+            "unread": 'UNREAD' in (msg_data.get('labelIds') or []),
+            "id": msg_data.get('id'),
+            "threadId": msg_data.get('threadId'),
         }
         email_list.append(email_info)
 
     return jsonify(email_list)
+
+# 📧 Ungelesene Nachrichten zählen (pro Slot oder cred_id)
+@app.route('/api/emails/unread_count')
+def unread_count():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    cred_id_param = request.args.get('cred_id')
+    slot_param = request.args.get('slot')
+
+    try:
+        cred_row = None
+        if cred_id_param:
+            try:
+                cred_id_int = int(cred_id_param)
+            except Exception:
+                cred_id_int = None
+            if cred_id_int:
+                cred_row = GmailCredential.query.filter_by(id=cred_id_int, username=session['user']).first()
+        if not cred_row:
+            slot_index = 1
+            if slot_param is not None:
+                try:
+                    slot_index = int(slot_param)
+                except Exception:
+                    slot_index = 1
+            slot_index = max(1, min(3, slot_index))
+            cred_row = (
+                GmailCredential.query
+                .filter_by(username=session['user'])
+                .order_by(GmailCredential.id.desc())
+                .offset(slot_index - 1)
+                .first()
+            )
+        if not cred_row:
+            return jsonify({"count": 0, "connected": False})
+        token_data = json.loads(cred_row.token_json)
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+        service = build('gmail', 'v1', credentials=creds)
+        results = service.users().messages().list(userId='me', q='is:unread', maxResults=1).execute() or {}
+        count = results.get('resultSizeEstimate', 0)
+        return jsonify({"count": int(count), "connected": True})
+    except Exception:
+        return jsonify({"count": 0, "connected": False})
+
+# Gmail-Account löschen
+@app.route('/api/gmail/accounts/<int:cred_id>', methods=['DELETE'])
+def delete_gmail_account(cred_id):
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    
+    try:
+        cred = GmailCredential.query.filter_by(id=cred_id, username=session['user']).first()
+        if not cred:
+            return jsonify({"error": "Gmail-Account nicht gefunden"}), 404
+        
+        db.session.delete(cred)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Löschen: {str(e)}"}), 500
+
+# 📧 Liste aller verbundenen Gmail-Postfächer (Email + unread)
+@app.route('/api/gmail/accounts')
+def gmail_accounts():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    rows = (
+        GmailCredential.query
+        .filter_by(username=session['user'])
+        .order_by(GmailCredential.id.desc())
+        .all()
+    )
+    accounts = []
+    for r in rows:
+        try:
+            token_data = json.loads(r.token_json)
+            creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+            service = build('gmail', 'v1', credentials=creds)
+            # Email-Adresse bestimmen: via profile
+            email_addr = None
+            try:
+                prof = service.users().getProfile(userId='me').execute() or {}
+                email_addr = prof.get('emailAddress')
+            except Exception:
+                email_addr = None
+            # Ungelesen schätzen
+            try:
+                res = service.users().messages().list(userId='me', q='is:unread', maxResults=1).execute() or {}
+                unread_est = int(res.get('resultSizeEstimate', 0))
+            except Exception:
+                unread_est = 0
+            accounts.append({
+                "cred_id": r.id,
+                "email": email_addr or "Verbundenes Konto",
+                "unread": unread_est,
+            })
+        except Exception:
+            continue
+    return jsonify(accounts)
+
 
 # 📧 Angebot per E-Mail versenden (PDF Base64)
 @app.route('/api/send-offer', methods=['POST'])
@@ -363,17 +1197,42 @@ def send_offer():
     # Subject/Body defaults (keeps your latest wording) with last name interpolation
     name_full = (data.get('sms_name') or '').strip()
     last_name = (data.get('lastName') or (name_full.split()[-1] if name_full else '')).strip()
+    
+    # Prüfe ob es sich um einen Befragungsbogen handelt (früh definieren)
+    filename = data.get('filename') or 'Angebot.pdf'
     subject = data.get('subject') or "Ihr unverbindliches Angebot"
-    body = data.get('body') or (
-        f"Sehr geehrte Familie {last_name},\n\n"
-        "vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.\n\n"
-        "Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.\n\n"
-        "Mit besten Grüßen  \n"
-        "Team HelpCare  \n\n"
+    is_questionnaire = (
+        'befragungsbogen' in filename.lower() or 
+        'befragungsbogen' in subject.lower() or
+        'befragungsbogen' in (data.get('body') or '').lower()
     )
+    
+    # Für Befragungsbogen: Kunden-ID in den Body einbetten
+    if is_questionnaire:
+        form_fields = data.get('form_fields', {})
+        customer_id = form_fields.get('kunden_id', '')
+        if customer_id:
+            body = data.get('body') or (
+                f"Hallo,\n\n"
+                f"anbei befindet sich der Befragungsbogen für Kunden-ID: {customer_id}\n\n"
+                f"Mit besten Grüßen"
+            )
+        else:
+            body = data.get('body') or (
+                "Hallo,\n\n" 
+                "anbei befindet sich der Befragungsbogen.\n\n"
+                "Mit besten Grüßen"
+            )
+    else:
+        body = data.get('body') or (
+            f"Sehr geehrte Familie {last_name},\n\n"
+            "vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.\n\n"
+            "Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.\n\n"
+            "Mit besten Grüßen  \n"
+            "Team HelpCare  \n\n"
+        )
 
     pdf_b64 = data.get('pdf_base64')
-    filename = data.get('filename') or 'Angebot.pdf'
     sms_number = data.get('sms_number')
     sms_name = data.get('sms_name')
     sms_info_email = to_email
@@ -429,12 +1288,28 @@ def send_offer():
                 body_text_final = body_text_final.rstrip() + "\n\n" + sig_text
             body_html_final = body_html_final + "<div>" + signature_html + "</div>"
 
+        # Prüfe ob es sich um einen Befragungsbogen handelt (vor E-Mail-Versand)
+        is_questionnaire = (
+            'befragungsbogen' in filename.lower() or 
+            'befragungsbogen' in subject.lower() or
+            'befragungsbogen' in body.lower()
+        )
+
         # Build MIME message with multipart/alternative (text + HTML) and PDF attachment
         mixed_boundary = 'mixed_boundary'
         alt_boundary = 'alt_boundary'
         message_parts = []
         message_parts.append(f"Content-Type: multipart/mixed; boundary={mixed_boundary}\r\n")
         message_parts.append(f"MIME-Version: 1.0\r\n")
+        
+        # Für Befragungsbogen: BCC an alle Kooperationspartner
+        if is_questionnaire:
+            partners = Kooperationspartner.query.all()
+            bcc_emails = [partner.email for partner in partners]
+            if bcc_emails:
+                message_parts.append(f"bcc: {', '.join(bcc_emails)}\r\n")
+                print(f"DEBUG: Sende Befragungsbogen per BCC an: {bcc_emails}")
+        
         message_parts.append(f"to: {to_email}\r\n")
         message_parts.append(f"subject: {subject}\r\n\r\n")
         # Alternative part (text + HTML)
@@ -463,6 +1338,72 @@ def send_offer():
         raw_message = ''.join(message_parts).encode('utf-8')
         raw = urlsafe_b64encode(raw_message).decode('utf-8')
         service.users().messages().send(userId='me', body={'raw': raw}).execute()
+        
+        # Automatisch Kunde speichern - unterscheide zwischen Angebot und Befragungsbogen
+        customer_name = sms_name or name_full or None
+        
+        if is_questionnaire:
+            # Befragungsbogen-Daten speichern (inkl. Formularfelder und PDF)
+            form_fields = data.get('form_fields', {})
+            customer_id = form_fields.get('kunden_id', '')
+            
+            questionnaire_data = {
+                'subject': subject,
+                'body': body,
+                'filename': filename,
+                'sms_number': sms_number,
+                'sms_name': sms_name,
+                'lastName': last_name,
+                'sent_at': datetime.datetime.utcnow().isoformat(),
+                'form_fields': form_fields,  # Alle ausgefüllten Formularfelder (inkl. Kunden-ID)
+                'pdf_data': data.get('pdf_data', ''),  # Die generierte PDF-Datei (base64)
+                'customer_id': customer_id  # Kunden-ID für Kooperationspartner
+            }
+            print(f"DEBUG: Erkenne Befragungsbogen - speichere questionnaire_data: {questionnaire_data}")
+            
+            # Für Befragungsbogen: Speichere ohne spezifische E-Mail (da per BCC versendet)
+            # Lade alle Kooperationspartner für BCC
+            partners = Kooperationspartner.query.all()
+            bcc_emails = [partner.email for partner in partners]
+            print(f"DEBUG: BCC an Kooperationspartner: {bcc_emails}")
+            
+            # Speichere mit BCC-Information
+            questionnaire_data['bcc_recipients'] = bcc_emails
+            
+            # Wenn eine Kunden-ID ausgewählt ist, Daten zu diesem Kunden hinzufügen
+            if customer_id:
+                try:
+                    # Bestehenden Kunden laden
+                    customer = Customer.query.filter_by(id=int(customer_id)).first()
+                    if customer:
+                        # Befragungsbogen-Daten zu bestehendem Kunden hinzufügen
+                        customer.questionnaire_data_json = json.dumps(questionnaire_data)
+                        db.session.commit()
+                        print(f"DEBUG: Befragungsbogen-Daten zu bestehendem Kunden {customer_id} hinzugefügt")
+                    else:
+                        print(f"DEBUG: Kunde {customer_id} nicht gefunden, erstelle neuen Kunden")
+                        save_customer_from_email('befragungsbogen@helpcare.de', 'Befragungsbogen', questionnaire_data=questionnaire_data)
+                except Exception as e:
+                    print(f"DEBUG: Fehler beim Hinzufügen zu bestehendem Kunden: {e}")
+                    save_customer_from_email('befragungsbogen@helpcare.de', 'Befragungsbogen', questionnaire_data=questionnaire_data)
+            else:
+                # Kein Kunde ausgewählt - neuen Kunden erstellen
+                save_customer_from_email('befragungsbogen@helpcare.de', 'Befragungsbogen', questionnaire_data=questionnaire_data)
+        else:
+            # Angebot-Daten speichern (inkl. PDF)
+            offer_data = {
+                'subject': subject,
+                'body': body,
+                'filename': filename,
+                'sms_number': sms_number,
+                'sms_name': sms_name,
+                'lastName': last_name,
+                'sent_at': datetime.datetime.utcnow().isoformat(),
+                'pdf_data': data.get('pdf_base64', '')  # Die PDF-Datei (base64)
+            }
+            print(f"DEBUG: Erkenne Angebot - speichere offer_data: {offer_data}")
+            save_customer_from_email(to_email, customer_name, offer_data)
+        
         # Optional: Send SMS via Link Mobility if number present
         if sms_number:
             try:
@@ -605,19 +1546,22 @@ def users_api():
 # 🗒️ Teamnotizen API
 @app.route('/api/team-notes', methods=['GET', 'POST'])
 def team_notes():
-    if "user" not in session:
-        return jsonify({"error": "Nicht eingeloggt"}), 401
 
     if request.method == 'GET':
-        notes = TeamNote.query.order_by(TeamNote.id.desc()).limit(200).all()
+        notes = TeamNote.query.order_by(TeamNote.id.asc()).limit(500).all()
         return jsonify([n.to_dict() for n in notes])
 
     payload = request.get_json() or {}
     content = payload.get('content')
+    parent_id = payload.get('parent_id')
     if not content:
         return jsonify({"error": "content erforderlich"}), 400
-    author = session.get('user')
-    note = TeamNote(content=content, author=author)
+    author = session.get('user') or 'Gast'
+    try:
+        pid = int(parent_id) if parent_id is not None else None
+    except Exception:
+        pid = None
+    note = TeamNote(content=content, author=author, parent_id=pid)
     db.session.add(note)
     db.session.commit()
     return jsonify(note.to_dict()), 201
@@ -629,13 +1573,228 @@ def delete_team_note(note_id: int):
     note = TeamNote.query.get(note_id)
     if not note:
         return jsonify({"error": "Notiz nicht gefunden"}), 404
-    # Only the author may delete their own notes
+    # Nur der Autor darf seine eigene Notiz löschen
     current_user = session.get('user')
     if not current_user or (note.author and note.author != current_user):
         return jsonify({"error": "Keine Berechtigung zum Löschen dieser Notiz"}), 403
     db.session.delete(note)
     db.session.commit()
     return jsonify({"success": True})
+
+# Reaktionen setzen/entfernen
+@app.route('/api/team-notes/<int:note_id>/react', methods=['POST'])
+def react_team_note(note_id: int):
+    # Reaktionen auch ohne Login zulassen
+    note = TeamNote.query.get(note_id)
+    if not note:
+        return jsonify({"error": "Notiz nicht gefunden"}), 404
+    payload = request.get_json() or {}
+    reaction = (payload.get('reaction') or '').strip()
+    if not reaction:
+        return jsonify({"error": "reaction erforderlich"}), 400
+    import json as _json
+    try:
+        current = _json.loads(note.reactions_json or '[]')
+        if not isinstance(current, list):
+            current = []
+    except Exception:
+        current = []
+    # Toggle reaction for this user (simple aggregate without user binding for now)
+    current.append(reaction)
+    note.reactions_json = _json.dumps(current)
+    db.session.commit()
+    return jsonify(note.to_dict())
+
+# 👥 Kundenverwaltung API
+@app.route('/api/customers', methods=['GET', 'POST'])
+def customers():
+    if request.method == 'GET':
+        customers = Customer.query.order_by(Customer.created_at.desc()).all()
+        return jsonify([customer.to_dict() for customer in customers])
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        
+        # Prüfen ob Kunde mit gleichem Namen bereits existiert
+        existing_customer = Customer.query.filter_by(name=data.get('name')).first()
+        if existing_customer:
+            return jsonify({"error": "Kunde mit diesem Namen existiert bereits"}), 400
+        
+        customer = Customer(
+            name=data.get('name'),
+            email=data.get('email'),
+            phone=data.get('phone'),
+            company=data.get('company'),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(customer)
+        db.session.commit()
+        
+        return jsonify(customer.to_dict()), 201
+
+@app.route('/api/customers/<int:customer_id>', methods=['GET', 'PUT', 'DELETE'])
+def customer_detail(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    
+    if request.method == 'GET':
+        return jsonify(customer.to_dict())
+    
+    elif request.method == 'PUT':
+        data = request.get_json()
+        
+        customer.name = data.get('name', customer.name)
+        customer.email = data.get('email', customer.email)
+        customer.phone = data.get('phone', customer.phone)
+        customer.company = data.get('company', customer.company)
+        customer.notes = data.get('notes', customer.notes)
+        customer.last_contact = datetime.datetime.utcnow()
+        
+        db.session.commit()
+        return jsonify(customer.to_dict())
+    
+    elif request.method == 'DELETE':
+        db.session.delete(customer)
+        db.session.commit()
+        return jsonify({"success": True})
+
+# Automatisches Speichern von Kunden beim Angebot versenden
+def save_customer_from_email(email_address, customer_name=None, offer_data=None, questionnaire_data=None):
+    """Speichert automatisch einen Kunden basierend auf E-Mail-Adresse"""
+    print(f"DEBUG: save_customer_from_email aufgerufen mit email={email_address}, questionnaire_data={questionnaire_data}")
+    if not email_address:
+        print("DEBUG: Keine E-Mail-Adresse, breche ab")
+        return None
+    
+    import json
+    
+    # Prüfen ob Kunde bereits existiert
+    existing_customer = Customer.query.filter_by(email=email_address).first()
+    if existing_customer:
+        # Letzten Kontakt aktualisieren
+        existing_customer.last_contact = datetime.datetime.utcnow()
+        
+        # Angebot-Daten hinzufügen/aktualisieren
+        if offer_data:
+            try:
+                current_offer_data = json.loads(existing_customer.offer_data_json or '{}')
+                current_offer_data.update(offer_data)
+                existing_customer.offer_data_json = json.dumps(current_offer_data)
+            except:
+                existing_customer.offer_data_json = json.dumps(offer_data)
+            
+            # Kontakthistorie-Eintrag hinzufügen
+            existing_customer.add_contact_entry('offer_sent', offer_data)
+        
+        # Befragungsbogen-Daten hinzufügen/aktualisieren
+        if questionnaire_data:
+            try:
+                current_questionnaire_data = json.loads(existing_customer.questionnaire_data_json or '{}')
+                current_questionnaire_data.update(questionnaire_data)
+                existing_customer.questionnaire_data_json = json.dumps(current_questionnaire_data)
+            except:
+                existing_customer.questionnaire_data_json = json.dumps(questionnaire_data)
+            
+            # Kontakthistorie-Eintrag hinzufügen
+            existing_customer.add_contact_entry('questionnaire_sent', questionnaire_data)
+        
+        db.session.commit()
+        return existing_customer
+    
+    # Neuen Kunden erstellen
+    customer = Customer(
+        name=customer_name or email_address.split('@')[0],  # Fallback: Teil vor @
+        email=email_address
+    )
+    
+    # Angebot-Daten hinzufügen
+    if offer_data:
+        customer.offer_data_json = json.dumps(offer_data)
+        customer.add_contact_entry('offer_sent', offer_data)
+    
+    # Befragungsbogen-Daten hinzufügen
+    if questionnaire_data:
+        customer.questionnaire_data_json = json.dumps(questionnaire_data)
+        customer.add_contact_entry('questionnaire_sent', questionnaire_data)
+    
+    db.session.add(customer)
+    db.session.commit()
+    return customer
+
+# Befragungsbogen-Daten zu Kunde hinzufügen
+@app.route('/api/customers/<int:customer_id>/questionnaire', methods=['POST'])
+def add_questionnaire_data(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    data = request.get_json()
+    
+    import json
+    
+    # Befragungsbogen-Daten hinzufügen/aktualisieren
+    try:
+        current_data = json.loads(customer.questionnaire_data_json or '{}')
+        current_data.update(data)
+        customer.questionnaire_data_json = json.dumps(current_data)
+    except:
+        customer.questionnaire_data_json = json.dumps(data)
+    
+    # Kontakthistorie-Eintrag hinzufügen
+    customer.add_contact_entry('questionnaire_sent', data)
+    
+    db.session.commit()
+    return jsonify(customer.to_dict())
+
+# Kooperationspartner API
+@app.route('/api/kooperationspartner', methods=['GET'])
+def get_kooperationspartner():
+    try:
+        partners = Kooperationspartner.query.order_by(Kooperationspartner.name).all()
+        return jsonify([partner.to_dict() for partner in partners])
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Laden: {str(e)}"}), 500
+
+@app.route('/api/kooperationspartner', methods=['POST'])
+def create_kooperationspartner():
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    email = data.get('email', '').strip()
+    
+    if not name or not email:
+        return jsonify({"error": "Name und E-Mail sind erforderlich"}), 400
+    
+    try:
+        partner = Kooperationspartner(name=name, email=email)
+        db.session.add(partner)
+        db.session.commit()
+        return jsonify(partner.to_dict())
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Erstellen: {str(e)}"}), 500
+
+@app.route('/api/kooperationspartner/<int:partner_id>', methods=['PUT'])
+def update_kooperationspartner(partner_id):
+    partner = Kooperationspartner.query.get_or_404(partner_id)
+    data = request.get_json() or {}
+    
+    try:
+        if 'name' in data:
+            partner.name = data['name'].strip()
+        if 'email' in data:
+            partner.email = data['email'].strip()
+        
+        db.session.commit()
+        return jsonify(partner.to_dict())
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Aktualisieren: {str(e)}"}), 500
+
+@app.route('/api/kooperationspartner/<int:partner_id>', methods=['DELETE'])
+def delete_kooperationspartner(partner_id):
+    partner = Kooperationspartner.query.get_or_404(partner_id)
+    
+    try:
+        db.session.delete(partner)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Löschen: {str(e)}"}), 500
 
 # 🔓 Logout
 @app.route("/logout")

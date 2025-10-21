@@ -60,14 +60,27 @@ class TeamNote(db.Model):
     content = db.Column(db.Text, nullable=False)
     author = db.Column(db.String(120), nullable=True)  # optional: Nutzername aus Session
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Neu: Threading & Reaktionen
+    parent_id = db.Column(db.Integer, db.ForeignKey('team_notes.id'), nullable=True)
+    reactions_json = db.Column(db.Text, nullable=True, default='[]')
 
     def to_dict(self):
-        return {
+        data = {
             'id': self.id,
             'content': self.content,
             'author': self.author,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
         }
+        # Optional-Felder sicher anhängen (falls Spalten in älteren DBs fehlen)
+        try:
+            data['parent_id'] = getattr(self, 'parent_id', None)
+        except Exception:
+            data['parent_id'] = None
+        try:
+            data['reactions'] = getattr(self, 'reactions_json', '[]')
+        except Exception:
+            data['reactions'] = '[]'
+        return data
 
 
 class GmailCredential(db.Model):
@@ -79,6 +92,93 @@ class GmailCredential(db.Model):
     token_json = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Kooperationspartner(db.Model):
+    __tablename__ = 'kooperationspartner'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class Customer(db.Model):
+    __tablename__ = 'customers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), nullable=True)
+    phone = db.Column(db.String(64), nullable=True)
+    company = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_contact = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text, nullable=True)
+    
+    # Angebot-Variablen (JSON für Flexibilität)
+    offer_data_json = db.Column(db.Text, nullable=True, default='{}')
+    
+    # Befragungsbogen-Daten
+    questionnaire_data_json = db.Column(db.Text, nullable=True, default='{}')
+    
+    # Kontakthistorie
+    contact_history_json = db.Column(db.Text, nullable=True, default='[]')
+
+    def to_dict(self):
+        import json
+        data = {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'company': self.company,
+            'created_at': self.created_at.isoformat(),
+            'last_contact': self.last_contact.isoformat(),
+            'notes': self.notes
+        }
+        
+        # JSON-Felder sicher parsen
+        try:
+            data['offer_data'] = json.loads(self.offer_data_json or '{}')
+        except:
+            data['offer_data'] = {}
+            
+        try:
+            data['questionnaire_data'] = json.loads(self.questionnaire_data_json or '{}')
+        except:
+            data['questionnaire_data'] = {}
+            
+        try:
+            data['contact_history'] = json.loads(self.contact_history_json or '[]')
+        except:
+            data['contact_history'] = []
+            
+        return data
+    
+    def add_contact_entry(self, contact_type, details=None):
+        """Fügt einen neuen Kontakteintrag hinzu"""
+        import json
+        try:
+            history = json.loads(self.contact_history_json or '[]')
+        except:
+            history = []
+            
+        entry = {
+            'type': contact_type,  # 'offer_sent', 'questionnaire_sent', 'manual_note'
+            'timestamp': datetime.utcnow().isoformat(),
+            'details': details or {}
+        }
+        
+        history.append(entry)
+        self.contact_history_json = json.dumps(history)
+        self.last_contact = datetime.utcnow()
 
 
 class PdfDocument(db.Model):
@@ -96,4 +196,33 @@ class PdfDocument(db.Model):
             'filename': self.filename,
             'uploaded_by': self.uploaded_by,
             'uploaded_at': self.uploaded_at.isoformat()
+        }
+
+
+class Caregiver(db.Model):
+    __tablename__ = 'caregivers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text, nullable=True)
+    # Signierte Verträge (letzter/aktueller) – flexibel per JSON
+    contract_data_json = db.Column(db.Text, nullable=True, default='{}')
+
+    def to_dict(self):
+        import json
+        try:
+            contract_data = json.loads(self.contract_data_json or '{}')
+        except Exception:
+            contract_data = {}
+        return {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'phone': self.phone,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'notes': self.notes,
+            'contract_data': contract_data,
         }

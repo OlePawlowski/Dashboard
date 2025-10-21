@@ -75,8 +75,14 @@ button:focus-visible {
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .section-title { font-weight: 700; margin: 0 0 8px; }

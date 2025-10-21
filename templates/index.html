@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://kit.fontawesome.com/a2e0f2ac1f.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -39,9 +41,24 @@
       <ul class="nav">
         <li class="active"><i class="fas fa-home"></i> Dashboard</li>
         <li><i class="fas fa-calendar-alt"></i><a style="cursor: pointer; all: unset;" href="https://calendar.google.com/calendar/u/0/r"> Kalendar</a></li>
+        <li id="nav-kunden" role="button" tabindex="0"><i class="fas fa-users"></i> Kunden</li>
+        <li id="nav-caregivers" role="button" tabindex="0"><i class="fas fa-user-nurse"></i> Betreuungskräfte</li>
+        <li id="nav-kooperationspartner" role="button" tabindex="0"><i class="fas fa-handshake"></i> Kooperationspartner</li>
         <li id="nav-kostenrechner" role="button" tabindex="0"><i class="fas fa-calculator"></i> Kostenrechner</li>
+        <li id="nav-befragungsbogen" role="button" tabindex="0"><i class="fas fa-file-signature"></i> Befragungsbogen</li>
         <li><i class="fas fa-life-ring" href="mailto:o.pawlowski@helpcare.de"></i> Hilfe</li>
       </ul>
+
+      <!-- Outlook-ähnliche Gmail Sidebar: Kontoliste mit Badges -->
+      <div class="sidebar-gmail">
+        <div class="sidebar-gmail-header">
+          <span class="sidebar-gmail-title"><i class="fa-solid fa-envelope"></i> Postfächer</span>
+        </div>
+        <ul class="mail-accounts" id="mailAccounts"></ul>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-top:.5rem;">
+          <button id="btnAddMailbox" class="btn-small" type="button">Postfach hinzufügen</button>
+        </div>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -68,10 +85,10 @@
         </div>
 
         <div class="kpi-score glass" id="pdf-box">
-          <h3>PDF Ablage</h3>
+          <h3>Profile</h3>
           <form id="pdfUploadForm" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
             <input type="file" id="pdfFile" accept="application/pdf" required />
-            <button type="submit">Hochladen</button>
+            <button type="submit" class="btn-small">Hochladen</button>
           </form>
           <div id="pdf-list">Lade PDFs...</div>
         </div>
@@ -80,43 +97,33 @@
         <div class="team-notes glass">
           <div class="team-notes-header">
             <h3>Teamnotizen</h3>
-            <form id="teamNoteForm" class="team-note-form">
-              <input type="text" name="content" placeholder="Neue Notiz hinzufügen..." required />
-              <button type="submit">Speichern</button>
-            </form>
           </div>
-          <div id="teamNotesList" class="team-notes-list">
-            <!-- Notizen -->
+          <div id="teamNotesList" class="team-notes-list chat-list" aria-live="polite"></div>
+          <div class="chat-composer" id="teamNotesComposer">
+            <input id="chatInputTN" type="text" placeholder="Nachricht schreiben…" />
+            <button id="chatSendTN" class="btn-small" type="button">Senden</button>
           </div>
         </div>
 
       </section>
 
-      <!-- Gmail Bereich (3 Spalten) -->
-      <section class="working-format glass">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-          <h3>Gmail</h3>
-          <div style="display:flex; gap:0.5rem;">
-            <a href="/gmail/connect?slot=1" class="btn-small">Verbinden 1</a>
-            <a href="/gmail/connect?slot=2" class="btn-small">Verbinden 2</a>
-            <a href="/gmail/connect?slot=3" class="btn-small">Verbinden 3</a>
+      <!-- Outlook-ähnlicher Mailbereich -->
+      <section class="mail-layout glass">
+        <div class="mail-columns">
+          <div class="mail-list" id="mail-list">
+            <div class="mail-list-empty">Wähle links ein Postfach…</div>
           </div>
-        </div>
-        <div class="gmail-grid">
-          <div class="gmail-pane">
-            <div class="gmail-pane-header">Inbox 1</div>
-            <ul id="email-list-1"><li>Lade E-Mails...</li></ul>
-          </div>
-          <div class="gmail-pane">
-            <div class="gmail-pane-header">Inbox 2</div>
-            <ul id="email-list-2"><li>Lade E-Mails...</li></ul>
-          </div>
-          <div class="gmail-pane">
-            <div class="gmail-pane-header">Inbox 3</div>
-            <ul id="email-list-3"><li>Lade E-Mails...</li></ul>
+          <div class="mail-preview" id="mail-preview">
+            <div class="mail-preview-empty">Keine E-Mail ausgewählt</div>
           </div>
         </div>
       </section>
+
+      <!-- Kunden-Bereich entfernt - wird als Modal implementiert -->
+
+      <!-- Vollbild-Bereiche entfernt - werden als Modals implementiert -->
+
+      
     </main>
   </div>
 
@@ -132,14 +139,35 @@
       return;
     }
     pdfList.innerHTML = items.map(d => `
-      <div class="message glass" style="display:flex;justify-content:space-between;align-items:center;gap:8px; padding:8px;">
-        <div>
-          <strong>${d.filename}</strong><br>
+      <div class="message glass pdf-item" data-id="${d.id}" style="display:flex;justify-content:space-between;align-items:center;gap:8px; padding:8px;">
+        <div class="pdf-item-meta" style="min-width:0;overflow:hidden;">
+          <strong style="display:inline-block;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.filename}</strong><br>
           <small>von ${d.uploaded_by || 'unbekannt'} • ${new Date(d.uploaded_at).toLocaleString('de-DE')}</small>
         </div>
-        <a class="btn-small" href="/api/pdfs/${d.id}" target="_blank" rel="noopener">Öffnen</a>
+        <div class="pdf-item-actions" style="display:flex; gap:6px; align-items:center;">
+          <a class="btn-small" href="/api/pdfs/${d.id}" target="_blank" rel="noopener">Öffnen</a>
+          <button class="pdf-delete" title="Löschen" aria-label="Löschen" data-id="${d.id}" style="border:none;background:transparent;color:#f58060;font-weight:800;font-size:16px;line-height:1;cursor:pointer;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">×</button>
+        </div>
       </div>
     `).join('');
+    // Click-Handler für Löschen setzen
+    pdfList.querySelectorAll('.pdf-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (!id) return;
+        if (!confirm('Diese PDF wirklich löschen?')) return;
+        try{
+          const res = await fetch(`/api/pdfs/${id}`, { method: 'DELETE' });
+          if (!res.ok){
+            const data = await res.json().catch(()=>({}));
+            throw new Error(data.error || 'Löschen fehlgeschlagen');
+          }
+          await loadPdfs();
+        }catch(err){
+          alert('❌ ' + err.message);
+        }
+      });
+    });
   }
 
   async function loadPdfs(){
@@ -196,22 +224,30 @@
       // Render
       einsatzList.innerHTML = (data && data.length)
         ? data.map(item => `
-            <div class="meeting-card glass" role="button" tabindex="0">
-              <strong>${item.name}</strong><br>
-              <small>📞 ${item.tel}</small>
+            <div class="meeting-card glass" data-id="${item.id}" role="group">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <div style="min-width:0;overflow:hidden;">
+                  <strong style="display:inline-block;max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</strong><br>
+                  <small>📞 ${item.tel || ''}</small>
+                </div>
+                <button class="anfrage-delete" data-id="${item.id}" title="Löschen" style="border:none;background:transparent;color:#f58060;font-weight:800;font-size:18px;line-height:1;cursor:pointer;">×</button>
+              </div>
             </div>
           `).join("")
         : "<p>Keine Anfragen vorhanden.</p>";
 
       // Click & Keyboard (delegiert, funktioniert auch nach Re-Render)
-      einsatzList.querySelectorAll(".meeting-card").forEach(card => {
-        card.addEventListener("click", () => {
-          window.location.href = "https://app.maidplus.de/client";
-        });
-        card.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            window.location.href = "https://app.maidplus.de/client";
+      einsatzList.querySelectorAll('.anfrage-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.currentTarget.getAttribute('data-id');
+          if (!id) return;
+          if (!confirm('Diese Anfrage wirklich löschen?')) return;
+          try {
+            const res = await fetch(`/api/anfragen/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Löschen fehlgeschlagen');
+            await loadEinsaetze();
+          } catch(err) {
+            alert('❌ ' + err.message);
           }
         });
       });
@@ -267,76 +303,381 @@
     loadTeam();
   </script>
 
-  <!-- Teamnotizen laden/hinzufügen/löschen mit Auto-Reload -->
+  <!-- Teamchat Logik (SSE, CRUD, Upload, Reaktionen) -->
   <script>
-    const teamNotesList = document.getElementById('teamNotesList');
-    const teamNoteForm = document.getElementById('teamNoteForm');
+    (function(){
+      const chatRoot = document.getElementById('team-chat');
+      if (!chatRoot || chatRoot.getAttribute('data-enabled') !== '1') { return; }
+      try {
     const currentUsername = '{{ username }}';
+        const chatMessages = document.getElementById('chatMessages');
+        const chatComposer = document.getElementById('chatComposer');
+        const chatInput = document.getElementById('chatInput');
+        const chatFile = document.getElementById('chatFile');
 
-    function renderNotes(items) {
-      if (!items.length) {
-        teamNotesList.innerHTML = '<p>Keine Teamnotizen vorhanden.</p>';
+        function escapeHtml(str){
+          const map = {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"};
+          return String(str || '').replace(/[&<>"']/g, ch => map[ch] || ch);
+        }
+
+    function renderMessage(m){
+      const isMine = m.author === currentUsername;
+      const attachments = (m.attachments||[]).map(a => {
+        const isImg = (a.mime_type||'').startsWith('image/');
+        const url = `/api/chat/attachments/${a.stored_filename}`;
+        return isImg ? `<a class="att" href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${escapeHtml(a.filename)}"/></a>`
+                     : `<a class="att" href="${url}" target="_blank" rel="noopener">📎 ${escapeHtml(a.filename)}</a>`;
+      }).join('');
+      const reacts = aggregateReactions(m.reactions||[]).map(r => `<button class="react-btn" data-emoji="${r.emoji}" data-id="${m.id}">${r.emoji} ${r.count}</button>`).join('');
+      const replyInfo = m.reply_to_id ? `<div class="reply-ref">Antwort auf #${m.reply_to_id}</div>` : '';
+      const content = m.deleted ? '<em class="muted">Nachricht gelöscht</em>' : escapeHtml(m.content||'');
+      const edited = m.edited_at ? '<span class="edited">(bearbeitet)</span>' : '';
+        return `
+        <div class="chat-item${isMine?' mine':''}" data-id="${m.id}">
+          <div class="bubble">
+            <div class="meta"><strong>${escapeHtml(m.author||'')}</strong> · ${new Date(m.created_at).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})} ${edited}</div>
+            ${replyInfo}
+            <div class="text">${content}</div>
+            ${attachments ? `<div class="atts">${attachments}</div>` : ''}
+            ${reacts ? `<div class="actions"><div class="reactions" data-id="${m.id}">${reacts}</div></div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function aggregateReactions(list){
+      const map = new Map();
+      for (const r of list){
+        const key = r.emoji;
+        const entry = map.get(key) || { emoji: key, count: 0 };
+        entry.count++;
+        map.set(key, entry);
+      }
+      return Array.from(map.values());
+    }
+
+    function renderMessages(items){
+      if (!Array.isArray(items) || !items.length){
+        chatMessages.innerHTML = '<p class="muted" style="padding:8px;">Noch keine Nachrichten.</p>';
         return;
       }
-      teamNotesList.innerHTML = items.map(n => {
-        const canDelete = n.author && n.author === currentUsername;
-        return `
-        <div class="team-note-item glass">
-          <div class="team-note-content">${n.content}</div>
-          <div class="team-note-meta">${n.author || ''} • ${new Date(n.created_at).toLocaleString('de-DE')}</div>
-          ${canDelete ? `<button class="team-note-delete" data-id="${n.id}">Löschen</button>` : ''}
-        </div>`;
-      }).join('');
-      document.querySelectorAll('.team-note-delete').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const id = e.currentTarget.getAttribute('data-id');
-          try {
-            const res = await fetch(`/api/team-notes/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Fehler beim Löschen');
-            await loadNotes();
-          } catch (err) {
-            alert('❌ ' + err.message);
-          }
-        });
-      });
+      const html = items.slice().reverse().map(renderMessage).join('');
+      chatMessages.innerHTML = html;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      bindMessageActions();
     }
 
-    async function loadNotes() {
+    function appendMessage(m){
+      const html = renderMessage(m);
+      chatMessages.insertAdjacentHTML('beforeend', html);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      bindMessageActions();
+    }
+
+    function updateMessage(m){
+      const el = chatMessages.querySelector(`.chat-item[data-id='${m.id}']`);
+      if (!el) return;
+      el.outerHTML = renderMessage(m);
+      bindMessageActions();
+    }
+
+    function removeMessage(id){
+      const el = chatMessages.querySelector(`.chat-item[data-id='${id}']`);
+      if (el) el.remove();
+    }
+
+    async function loadInitial(){
       try {
-        const res = await fetch('/api/team-notes');
-        const items = await res.json();
-        renderNotes(items);
-      } catch (e) {
-        teamNotesList.innerHTML = '<p>Fehler beim Laden der Notizen.</p>';
+        const res = await fetch('/api/chat/messages?limit=20', { cache:'no-store' });
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        // Batch-Rendering zur UI-Entlastung
+        const chunk = 10;
+        for (let i = 0; i < data.length; i += chunk){
+          const slice = data.slice(i, i+chunk);
+          const html = slice.slice().reverse().map(renderMessage).join('');
+          chatMessages.insertAdjacentHTML('beforeend', html);
+          await new Promise(r => setTimeout(r, 0));
+        }
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        bindMessageActions();
+      } catch(err) {
+        chatMessages.innerHTML = '<p class="muted" style="padding:8px;">Chat konnte nicht geladen werden. Bitte neu laden oder einloggen.</p>';
       }
     }
 
-    teamNoteForm.addEventListener('submit', async (e) => {
+    // SSE Subscribe
+    function subscribe(){
+      try{
+        const ev = new EventSource('/api/chat/events');
+        // Sammle Events und rendere in Batches
+        let queue = [];
+        let timer = null;
+        function flush(){
+          if (!queue.length) return;
+          const items = queue.splice(0, queue.length);
+          const frag = document.createDocumentFragment();
+          items.forEach(msg => {
+            if (msg.type === 'message.created'){
+              const holder = document.createElement('div');
+              holder.innerHTML = renderMessage(msg.message);
+              frag.appendChild(holder.firstElementChild);
+            } else if (msg.type === 'message.updated'){
+              updateMessage(msg.message);
+            } else if (msg.type === 'message.deleted'){
+              removeMessage(msg.message_id);
+            } else if (msg.type === 'attachment.created' || msg.type === 'reaction.created' || msg.type === 'reaction.deleted'){
+              refreshMessage(msg.message_id || (msg.reaction && msg.reaction.message_id));
+            }
+          });
+          chatMessages.appendChild(frag);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          bindMessageActions();
+        }
+        ev.onmessage = (e)=>{
+          try{
+            const msg = JSON.parse(e.data);
+            queue.push(msg);
+            if (!timer){ timer = setTimeout(()=>{ timer = null; flush(); }, 100); }
+          }catch(_e){}
+        };
+        ev.onerror = ()=>{ /* optional retry/backoff */ };
+      }catch(_e){ /* SSE nicht verfügbar */ }
+    }
+
+    async function refreshMessage(id){
+      // fetch single message via list with before_id trick (simple):
+      const el = chatMessages.querySelector(`.chat-item[data-id='${id}']`);
+      if (!el) return;
+      const res = await fetch(`/api/chat/messages?limit=1&before_id=${Number(id)+1}`);
+      const data = await res.json();
+      const found = Array.isArray(data) ? data.find(x=>x.id===id) : null;
+      if (found) updateMessage(found);
+    }
+
+    // Composer
+    let replyTo = null;
+    chatComposer.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const formData = new FormData(teamNoteForm);
-      const payload = Object.fromEntries(formData.entries());
-      try {
-        const res = await fetch('/api/team-notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('Fehler beim Speichern');
-        teamNoteForm.reset();
-        await loadNotes();
-      } catch (e) {
-        alert('❌ ' + e.message);
+      const btn = document.getElementById('chatSend');
+      const content = chatInput.value.trim();
+      const payload = { content, reply_to_id: replyTo };
+      if (!content && !replyTo) return;
+      btn.disabled = true;
+      try{
+        const res = await fetch('/api/chat/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const msg = await res.json();
+        if (!res.ok) throw new Error(msg.error || 'Senden fehlgeschlagen');
+        chatInput.value = '';
+        replyTo = null;
+        chatComposer.classList.remove('replying');
+        // If a file is pre-selected, upload it now
+        if (chatFile.files && chatFile.files[0]) {
+          const fd = new FormData();
+          fd.append('file', chatFile.files[0]);
+          const up = await fetch(`/api/chat/messages/${msg.id}/attachments`, { method:'POST', body: fd });
+          if (!up.ok) {
+            const data = await up.json().catch(()=>({}));
+            alert('❌ '+(data.error||'Upload fehlgeschlagen'));
+          }
+          chatFile.value = '';
+        }
+      }catch(err){
+        alert('❌ ' + (err?.message || err));
+      } finally {
+        btn.disabled = false;
       }
     });
 
-    // Erste Ladung
-    loadNotes();
+    // Shift+Enter = Zeilenumbruch, Enter = Senden
+    chatInput.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); chatComposer.requestSubmit(); }
+    });
 
-    // 🔄 Auto-Reload jede 1 Sekunde
-    setInterval(loadNotes, 1000);
+    // kein separater Emoji-Button nötig (Tastatur/OS)
+
+    function bindMessageActions(){
+      // Kontextmenü auf Rechtsklick
+      chatMessages.querySelectorAll('.chat-item').forEach(el => {
+        el.oncontextmenu = (e)=>{
+      e.preventDefault();
+          const id = Number(el.getAttribute('data-id'));
+          openContextMenu(e.clientX, e.clientY, id, el.classList.contains('mine'));
+        };
+      });
+      // Reaktionen per Klick auf bestehende Zähler (optional)
+      chatMessages.querySelectorAll('.react-btn').forEach(b=> b.onclick = async ()=>{
+        const id = b.getAttribute('data-id');
+        const emoji = b.getAttribute('data-emoji');
+        const res = await fetch(`/api/chat/messages/${id}/reactions?emoji=${encodeURIComponent(emoji)}`, { method:'DELETE' });
+        if (!res.ok){ const d = await res.json().catch(()=>({})); alert('❌ '+(d.error||'Fehler')); }
+      });
+    }
+
+    // Leichtes Kontextmenü
+    let ctxEl = null;
+    function ensureCtx(){
+      if (ctxEl) return ctxEl;
+      ctxEl = document.createElement('div');
+      ctxEl.id = 'chat-ctx';
+      ctxEl.className = 'chat-context';
+      ctxEl.style.display = 'none';
+      document.body.appendChild(ctxEl);
+      document.addEventListener('click', ()=> hideContextMenu());
+      window.addEventListener('blur', ()=> hideContextMenu());
+      return ctxEl;
+    }
+    function openContextMenu(x, y, id, isMine){
+      const el = ensureCtx();
+      const items = [
+        { key: 'reply', label: 'Antworten', action: ()=>{ replyTo = id; chatComposer.classList.add('replying'); chatInput.focus(); } },
+        ...(isMine ? [{ key: 'delete', label: 'Löschen', action: async ()=>{ if (!confirm('Nachricht löschen?')) return; const res = await fetch(`/api/chat/messages/${id}`, { method:'DELETE' }); if (!res.ok){ const d = await res.json().catch(()=>({})); alert('❌ '+(d.error||'Fehler')); } } }] : [])
+      ];
+      el.innerHTML = items.map(i=>`<button data-key="${i.key}" class="ctx-item">${i.label}</button>`).join('');
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.display = 'block';
+      el.querySelectorAll('.ctx-item').forEach(btn => {
+        btn.onclick = ()=>{
+          const key = btn.getAttribute('data-key');
+          const item = items.find(it=>it.key===key);
+          hideContextMenu();
+          item && item.action && item.action();
+        };
+      });
+    }
+    function hideContextMenu(){ if (ctxEl) ctxEl.style.display = 'none'; }
+
+    // Initial
+    loadInitial();
+    subscribe();
+      } catch(err) {
+        try { console.error(err); } catch(_e){}
+      }
+    })();
   </script>
 
-  <!-- Gmail laden (3 Slots) -->
+  <!-- Teamnotizen Chat (WhatsApp-ähnlich) -->
+  <script>
+    (function(){
+      const list = document.getElementById('teamNotesList');
+      const input = document.getElementById('chatInputTN');
+      const sendBtn = document.getElementById('chatSendTN');
+      const currentUser = '{{ username }}';
+      if (!list || !input || !sendBtn) return;
+
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+      function render(items){
+        if (!Array.isArray(items) || !items.length){ list.innerHTML = '<p class="muted">Keine Teamnotizen vorhanden.</p>'; return; }
+        const byId = Object.create(null); items.forEach(i=> byId[i.id]=i);
+        const children = Object.create(null); items.forEach(i=>{ if(i.parent_id){ (children[i.parent_id] ||= []).push(i); } });
+        const me = currentUser;
+        function node(n, d){
+          const my = n.author===me;
+          const reacts = (()=>{ try{return JSON.parse(n.reactions||'[]')}catch(_e){return[]} })();
+          const meta = `${esc(n.author||'')} • ${new Date(n.created_at).toLocaleString('de-DE')}`;
+          return (
+            `<div class="chat-item${my?' me':''}" data-id="${n.id}" data-author="${esc(n.author||'')}" style="margin-left:${Math.min(d,2)*16}px">`
+            + `<div class=\"chat-bubble\">`
+            + (n.parent_id && byId[n.parent_id] ? `<div class=\"reply-ref\"><strong>${esc(byId[n.parent_id].author||'')}</strong>: ${esc((byId[n.parent_id].content||'').slice(0,80))}${(byId[n.parent_id].content||'').length>80?'…':''}</div>` : '')
+            + `${esc(n.content)}`
+            + `</div>`
+            + `<div class="chat-meta">${meta}${reacts.length?` • <span class="chat-reactions">${reacts.map(esc).join(' ')}</span>`:''}</div>`
+            + `</div>`
+            + (children[n.id]||[]).map(c=>node(c,d+1)).join('')
+          );
+        }
+        const roots = items.filter(i=>!i.parent_id);
+        list.innerHTML = roots.map(r=>node(r,0)).join('');
+        list.scrollTop = list.scrollHeight;
+
+        // Rechtsklick: Kontextmenü
+        ensureMenu();
+        list.querySelectorAll('.chat-item').forEach(el => {
+          el.addEventListener('contextmenu', (e)=>{
+            e.preventDefault();
+            const id = el.getAttribute('data-id');
+            const isMine = (el.getAttribute('data-author')||'') === currentUser;
+            openMenu(e.clientX, e.clientY, id, isMine);
+          });
+        });
+      }
+
+      async function load(){
+        try{ const res = await fetch('/api/team-notes'); const data = await res.json(); render(data); }
+        catch(_e){ list.innerHTML = '<p class="muted">Fehler beim Laden der Notizen.</p>'; }
+      }
+
+      async function send(){
+        const content = (input.value||'').trim(); if (!content) return;
+        const payload = { content };
+        const replyTo = input.getAttribute('data-reply-to'); if (replyTo) payload.parent_id = replyTo;
+        try{
+          const res = await fetch('/api/team-notes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          if (!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.error||'Fehler beim Senden'); }
+          input.value=''; input.removeAttribute('data-reply-to');
+          await load();
+        }catch(err){ alert('❌ '+(err?.message||err)); }
+      }
+
+      sendBtn.addEventListener('click', send);
+      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+      load();
+      setInterval(load, 1500);
+
+      // Kontextmenü (Reagieren, Antworten, Löschen)
+      let menu;
+      function ensureMenu(){
+        if (menu) return menu;
+        menu = document.createElement('div');
+        menu.className = 'chat-menu';
+        menu.style.display = 'none';
+        menu.innerHTML = `
+          <div style="display:grid; gap:6px; min-width:160px;">
+            <div style="display:flex; gap:6px;">
+              <button data-action="react" data-emoji="👍">👍</button>
+              <button data-action="react" data-emoji="❤️">❤️</button>
+              <button data-action="react" data-emoji="😂">😂</button>
+              <button data-action="react" data-emoji="🎉">🎉</button>
+            </div>
+            <button data-action="reply">Antworten</button>
+            <button data-action="delete" data-own-only>löschen</button>
+          </div>`;
+        document.body.appendChild(menu);
+        document.addEventListener('click', ()=>{ menu.style.display='none'; });
+        return menu;
+      }
+      function openMenu(x,y,id,isMine){
+        const m = ensureMenu();
+        const delBtn = m.querySelector('[data-own-only]');
+        if (delBtn) delBtn.style.display = isMine ? '' : 'none';
+        m.style.left = x+'px';
+        m.style.top = y+'px';
+        m.style.display = 'block';
+        m.setAttribute('data-id', id);
+      }
+      document.addEventListener('click', async (e)=>{
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        if (!menu || menu.style.display==='none' || !t.closest('.chat-menu')) return;
+        const id = menu.getAttribute('data-id');
+        const action = t.getAttribute('data-action');
+        if (!id || !action) return;
+        if (action === 'react'){
+          const emoji = t.getAttribute('data-emoji') || '👍';
+          try{ await fetch(`/api/team-notes/${id}/react`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ reaction: emoji }) }); await load(); }catch(_e){}
+        } else if (action === 'reply'){
+          input.focus(); input.setAttribute('data-reply-to', id);
+        } else if (action === 'delete'){
+          if (!confirm('Nachricht löschen?')) return;
+          try{ const res = await fetch(`/api/team-notes/${id}`, { method:'DELETE' }); if (!res.ok){ const d = await res.json().catch(()=>({})); alert('❌ '+(d.error||'Fehler')); } await load(); }catch(_e){}
+        }
+        menu.style.display = 'none';
+      });
+    })();
+  </script>
+
+  <!-- Gmail-UI: Kontobadges, Liste, Preview -->
   <script>
     // Dark mode toggle with localStorage persistence
     (function(){
@@ -350,32 +691,192 @@
       });
     })();
 
-    function loadInbox(slot) {
-      fetch(`/api/emails?slot=${slot}`)
-        .then(res => res.json())
-        .then(data => {
-          const list = document.getElementById(`email-list-${slot}`);
-          if (!Array.isArray(data)) {
-            list.innerHTML = `<li>${data.error || '❌ Fehler beim Laden'}</li>`;
+    const mailListEl = document.getElementById('mail-list');
+    const mailPreviewEl = document.getElementById('mail-preview');
+    const mailAccountsEl = document.getElementById('mailAccounts');
+    const btnAddMailbox = document.getElementById('btnAddMailbox');
+
+    function renderMailList(items){
+      if (!Array.isArray(items) || !items.length){
+        mailListEl.innerHTML = '<div class="mail-list-empty">Keine E‑Mails</div>';
+        mailPreviewEl.innerHTML = '<div class="mail-preview-empty">Keine E‑Mail ausgewählt</div>';
             return;
           }
-          list.innerHTML = "";
-          data.forEach(mail => {
-            const li = document.createElement("li");
-            const link = document.createElement("a");
-            link.href = "https://mail.google.com/mail/u/0/#inbox";
-            link.target = "_blank";
-            link.innerHTML = `<strong>${mail.from}</strong><br>${mail.subject}<br><small>${mail.time}</small>`;
-            li.appendChild(link);
-            list.appendChild(li);
-          });
-        })
-        .catch(() => {
-          const list = document.getElementById(`email-list-${slot}`);
-          list.innerHTML = "<li>❌ Fehler beim Laden</li>";
+      mailListEl.innerHTML = items.map((m, idx) => `
+        <div class="mail-item${m.unread ? ' unread' : ''}" data-id="${m.id}" data-idx="${idx}">
+          <div class="mail-item-top">
+            <div class="mail-item-from">${m.from}</div>
+            <div class="mail-item-time">${m.time}</div>
+          </div>
+          <div class="mail-item-subject">${m.subject}</div>
+          <div class="mail-item-snippet">${(m.snippet||'').replace(/</g,'&lt;')}</div>
+        </div>
+      `).join('');
+      mailListEl.querySelectorAll('.mail-item').forEach(el => {
+        el.addEventListener('click', ()=>{
+          const idx = Number(el.getAttribute('data-idx'));
+          const m = window.__currentMails?.[idx];
+          if (!m) return;
+          renderPreview(m);
+          mailListEl.querySelectorAll('.mail-item').forEach(x=>x.classList.remove('active'));
+          el.classList.add('active');
         });
+      });
     }
-    [1,2,3].forEach(loadInbox);
+
+    function renderPreview(m){
+      mailPreviewEl.innerHTML = `
+        <div class=\"preview-header\">
+          <div class=\"preview-from\">${m.from}</div>
+          <div class=\"preview-time\">${m.time}</div>
+        </div>
+        <div class=\"preview-subject\">${m.subject}</div>
+        <div class=\"preview-body muted\">Vorschau: ${(m.snippet||'').replace(/</g,'&lt;')}</div>
+        <div class=\"preview-actions\">
+          <a class=\"btn-small\" href=\"https://mail.google.com/mail/u/0/#inbox\" target=\"_blank\" rel=\"noopener\">In Gmail öffnen</a>
+        </div>
+      `;
+    }
+
+    async function updateBadgeByCred(credId){
+      try{
+        const res = await fetch(`/api/emails/unread_count?cred_id=${credId}`);
+        const data = await res.json();
+        const el = document.querySelector(`.mail-account[data-cred-id='${credId}'] .mail-account-badge`);
+        if (el) el.textContent = (data && typeof data.count==='number') ? data.count : 0;
+      }catch(_e){
+        const el = document.querySelector(`.mail-account[data-cred-id='${credId}'] .mail-account-badge`);
+        if (el) el.textContent = '0';
+      }
+    }
+
+    async function loadByCredId(credId){
+      try{
+        const res = await fetch(`/api/emails?cred_id=${credId}`);
+        const items = await res.json();
+        window.__currentMails = Array.isArray(items) ? items : [];
+        renderMailList(window.__currentMails);
+        if (window.__currentMails[0]) renderPreview(window.__currentMails[0]);
+      }catch(_e){
+        renderMailList([]);
+      }
+      updateBadgeByCred(credId);
+    }
+
+    async function renderAccounts(){
+      try{
+        const res = await fetch('/api/gmail/accounts');
+        const accs = await res.json();
+        if (!Array.isArray(accs)) { mailAccountsEl.innerHTML = '<li class="muted">Keine Postfächer verbunden</li>'; return; }
+        mailAccountsEl.innerHTML = accs.map((a, i)=>`
+          <li class="mail-account${i===0?' active':''}" data-cred-id="${a.cred_id}" draggable="true">
+            <span class="mail-account-name">${a.email || 'Konto'}</span>
+            <span class="mail-account-badge">${a.unread || 0}</span>
+          </li>
+        `).join('');
+        // Click binding und Rechtsklick für Löschen
+        mailAccountsEl.querySelectorAll('.mail-account').forEach(li => {
+          li.addEventListener('click', ()=>{
+            mailAccountsEl.querySelectorAll('.mail-account').forEach(x=>x.classList.remove('active'));
+            li.classList.add('active');
+            const credId = li.getAttribute('data-cred-id');
+            loadByCredId(credId);
+          });
+          
+          // Rechtsklick für Löschen
+          li.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            const credId = li.getAttribute('data-cred-id');
+            const email = li.querySelector('.mail-account-name').textContent;
+            
+            if (confirm(`Möchten Sie das Gmail-Konto "${email}" wirklich trennen?`)) {
+              try {
+                const res = await fetch(`/api/gmail/accounts/${credId}`, { method: 'DELETE' });
+                if (res.ok) {
+                  alert('✅ Gmail-Konto erfolgreich getrennt');
+                  renderAccounts(); // Liste neu laden
+                } else {
+                  const error = await res.json();
+                  alert('❌ Fehler beim Trennen: ' + error.error);
+                }
+              } catch (err) {
+                alert('❌ Fehler beim Trennen: ' + err.message);
+              }
+            }
+          });
+          // Drag & Drop Reordering (nur UI, persist optional später)
+          li.addEventListener('dragstart', (e)=>{
+            e.dataTransfer.setData('text/plain', li.getAttribute('data-cred-id'));
+            li.classList.add('dragging');
+          });
+          li.addEventListener('dragend', ()=>{ li.classList.remove('dragging'); });
+          li.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+          li.addEventListener('drop', (e)=>{
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const dropTarget = li;
+            const draggedEl = mailAccountsEl.querySelector(`.mail-account[data-cred-id='${draggedId}']`);
+            if (draggedEl && dropTarget && draggedEl !== dropTarget){
+              // einfgen: vor Ziel
+              mailAccountsEl.insertBefore(draggedEl, dropTarget);
+            }
+          });
+        });
+        // Load first by default
+        const first = mailAccountsEl.querySelector('.mail-account');
+        if (first){ loadByCredId(first.getAttribute('data-cred-id')); }
+        // keep badges updated
+        setTimeout(()=>{ accs.forEach(a=> updateBadgeByCred(a.cred_id)); }, 0);
+      }catch(_e){
+        mailAccountsEl.innerHTML = '<li class="muted">Fehler beim Laden</li>';
+      }
+    }
+
+    btnAddMailbox?.addEventListener('click', ()=>{
+      // starte OAuth-Flow (keine Slots mehr nötig)
+      window.location.href = '/gmail/connect';
+    });
+
+    renderAccounts();
+    setInterval(renderAccounts, 30000);
+  </script>
+
+  <!-- Chat: Paginierung (infinite scroll) -->
+  <script>
+    (function(){
+      const list = document.getElementById('chatMessages');
+      if (!list) return;
+      let loading = false;
+      let oldestId = null;
+      async function loadMore(){
+        if (loading) return; loading = true;
+        try{
+          const q = oldestId ? `&before_id=${oldestId}` : '';
+          const res = await fetch(`/api/chat/messages?limit=30${q}`);
+          const data = await res.json();
+          if (Array.isArray(data) && data.length){
+            const beforeHeight = list.scrollHeight;
+            const html = data.slice().reverse().map(m => renderMessage(m)).join('');
+            list.insertAdjacentHTML('afterbegin', html);
+            // Update oldestId
+            oldestId = data[data.length-1].id;
+            // preserve scroll position
+            const afterHeight = list.scrollHeight;
+            list.scrollTop = afterHeight - beforeHeight;
+            bindMessageActions();
+          }
+        }catch(_e){}
+        finally{ loading = false; }
+      }
+      // initial set oldestId after first render
+      setTimeout(()=>{
+        const first = list.querySelector('.chat-item');
+        if (first){ oldestId = Number(first.getAttribute('data-id')); }
+      }, 500);
+      list.addEventListener('scroll', ()=>{
+        if (list.scrollTop < 60) loadMore();
+      });
+    })();
   </script>
 
   <!-- Kostenrechner Modal -->
@@ -388,6 +889,118 @@
       <iframe id="kostenrechner-frame" src="/static/kostenrechner/index.html" title="Kostenrechner" style="width:100%;height:70vh;border:0;border-radius:12px;background:white;"></iframe>
     </div>
   </div>
+  <!-- Kundenverwaltung Modal -->
+  <div id="customers-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>Kundenverwaltung</h3>
+        <button id="close-customers" class="btn-small" type="button">Schließen</button>
+      </div>
+      <div class="modal-body">
+        <div class="customers-header">
+          <div class="customers-controls">
+            <input type="text" id="customer-search" placeholder="Nach Name oder ID suchen..." />
+            <button id="add-customer-btn" class="btn-small">Neuer Kunde</button>
+          </div>
+        </div>
+        <div class="customers-content">
+          <div class="customers-sidebar">
+            <div class="customers-list" id="customers-list">
+              <p>Lade Kunden...</p>
+            </div>
+          </div>
+          <div class="customer-profile" id="customer-profile">
+            <div class="customer-profile-empty">
+              <i class="fas fa-user-circle"></i>
+              <h4>Wähle einen Kunden aus</h4>
+              <p>Klicke auf einen Kunden in der Liste, um das Profil anzuzeigen</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Betreuungskräfte Modal -->
+  <div id="caregivers-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>Betreuungskräfte</h3>
+        <button id="close-caregivers" class="btn-small" type="button">Schließen</button>
+      </div>
+      <div class="modal-body">
+        <div class="customers-header">
+          <div class="customers-controls">
+            <input type="text" id="caregiver-search" placeholder="Nach Name oder E-Mail suchen..." />
+            <button id="add-caregiver-btn" class="btn-small">Neu</button>
+          </div>
+        </div>
+        <div class="customers-content">
+          <div class="customers-sidebar">
+            <div class="customers-list" id="caregivers-list">
+              <p>Lade Betreuungskräfte...</p>
+            </div>
+          </div>
+          <div class="customer-profile" id="caregiver-profile">
+            <div class="customer-profile-empty">
+              <i class="fas fa-user-circle"></i>
+              <h4>Wähle eine Betreuungskraft</h4>
+              <p>Klicke auf eine Betreuungskraft in der Liste</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kooperationspartner Modal -->
+  <div id="kooperationspartner-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>Kooperationspartner</h3>
+        <button id="close-kooperationspartner" class="btn-small" type="button">Schließen</button>
+      </div>
+      <div class="modal-body">
+        <div class="partners-header">
+          <div class="partners-controls">
+            <input type="text" id="partner-search" placeholder="Nach Name oder E-Mail suchen..." />
+            <button id="add-partner-btn" class="btn-small">Neuer Partner</button>
+          </div>
+        </div>
+        <div class="partners-content">
+          <div class="partners-list" id="partners-list">
+            <p>Lade Kooperationspartner...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Befragungsbogen Modal -->
+  <div id="befragungsbogen-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>Befragungsbogen</h3>
+        <div class="befragungsbogen-controls">
+          <div class="customer-selection">
+            <label for="customer-select">Kunde auswählen:</label>
+            <select id="customer-select">
+              <option value="">Neuen Kunden erstellen</option>
+            </select>
+          </div>
+        </div>
+        <button id="close-befragungsbogen" class="btn-small" type="button">Schließen</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" id="befragungsbogen-download" class="btn-small">Als PDF herunterladen</button>
+      </div>
+      <iframe id="befragungsbogen-frame" src="/befragungsbogen/2-personen" title="Befragungsbogen" style="width:100%;height:70vh;border:0;border-radius:12px;background:white;"></iframe>
+      <form id="befragungsbogen-send-form" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+        <input type="text" name="filename" placeholder="Dateiname (optional)" />
+        <button type="submit" class="btn-small">An Kooperationspartner senden</button>
+      </form>
+    </div>
+  </div>
 
   <script>
     // Modal open/close wiring
@@ -398,6 +1011,1000 @@
     openKR?.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); modalKR.style.display='block'; }});
     closeKR?.addEventListener('click', ()=> modalKR.style.display = 'none');
     modalKR?.addEventListener('click', (e)=>{ if (e.target === modalKR) modalKR.style.display='none'; });
+    // Befragungsbogen wiring
+    const openBF = document.getElementById('nav-befragungsbogen');
+    const modalBF = document.getElementById('befragungsbogen-modal');
+    const closeBF = document.getElementById('close-befragungsbogen');
+    openBF?.addEventListener('click', ()=> {
+      modalBF.style.display = 'block';
+      loadCustomers(); // Kunden für Dropdown laden
+      updateBefragungsbogenFrame(); // Iframe mit aktueller Kunden-ID aktualisieren
+    });
+    openBF?.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); modalBF.style.display='block'; }});
+    closeBF?.addEventListener('click', ()=> modalBF.style.display = 'none');
+    modalBF?.addEventListener('click', (e)=>{ if (e.target === modalBF) modalBF.style.display='none'; });
+
+    // Funktion zum Aktualisieren des Befragungsbogen-Iframes mit Kunden-ID
+    function updateBefragungsbogenFrame() {
+      const frame = document.getElementById('befragungsbogen-frame');
+      const customerSelect = document.getElementById('customer-select');
+      const selectedCustomerId = customerSelect ? customerSelect.value : '';
+      
+      if (frame) {
+        const baseUrl = '/befragungsbogen/2-personen';
+        const url = selectedCustomerId ? `${baseUrl}?customer_id=${selectedCustomerId}` : baseUrl;
+        
+        // Iframe komplett neu laden
+        frame.src = '';
+        setTimeout(() => {
+          frame.src = url;
+          console.log('Befragungsbogen-Iframe aktualisiert mit URL:', url);
+        }, 100);
+      }
+    }
+
+    // Event Listener für Kundenauswahl hinzufügen
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'customer-select') {
+        updateBefragungsbogenFrame();
+      }
+    });
+
+    // Versand Formular: nutzt /api/send-offer mit aktuellem PDF (Upload oder aus iFrame) – hier minimal: erfordert Upload
+    async function generateBogenPdfDataUrl(){
+      console.log('generateBogenPdfDataUrl gestartet...');
+      const frame = document.getElementById('befragungsbogen-frame');
+      const doc = frame?.contentDocument || frame?.contentWindow?.document;
+      if (!doc){ 
+        console.error('Formular nicht geladen - doc ist null');
+        throw new Error('Formular nicht geladen'); 
+      }
+      
+      console.log('Document gefunden:', doc);
+      
+      // Versuche zuerst das questionnaire Element zu finden, sonst die gesamte Seite
+      const questionnaire = doc.getElementById('questionnaire');
+      const pdfContainer = doc.querySelector('.pdf-container');
+      const target = questionnaire || pdfContainer || doc.documentElement;
+      
+      console.log('Target Element:', target);
+      console.log('Target ID:', target?.id);
+      console.log('Target class:', target?.className);
+      
+      if (!target) {
+        throw new Error('Kein gültiges Element für PDF-Generierung gefunden');
+      }
+      
+      console.log('Erstelle Canvas...');
+      const canvas = await html2canvas(target, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        logging: false
+      });
+      
+      console.log('Canvas erstellt:', canvas.width, 'x', canvas.height);
+      
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      let position = 0;
+
+      // Füge erste Seite hinzu
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      // Füge weitere Seiten hinzu falls nötig
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+      
+      console.log('PDF erfolgreich generiert');
+      return pdf.output('datauristring');
+    }
+
+    const frame1 = document.getElementById('befragungsbogen-frame');
+
+
+
+    document.getElementById('befragungsbogen-download')?.addEventListener('click', async ()=>{
+      const frame = document.getElementById('befragungsbogen-frame');
+      const win = frame?.contentWindow;
+      
+      try {
+        console.log('PDF-Download gestartet...');
+        console.log('Iframe src:', frame?.src);
+        
+        // Warte länger, damit das iframe vollständig geladen ist
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        console.log('Iframe window:', win);
+        console.log('generatePDF function exists:', win && typeof win.generatePDF === 'function');
+        
+        if (win && typeof win.generatePDF === 'function'){
+          console.log('Rufe generatePDF im iframe auf...');
+          await win.generatePDF();
+          console.log('generatePDF erfolgreich aufgerufen');
+        } else {
+          console.log('generatePDF nicht im iframe gefunden, verwende Fallback');
+          try {
+            const dataUrl = await generateBogenPdfDataUrl();
+            console.log('Fallback PDF erfolgreich generiert');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = 'Befragungsbogen.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log('PDF-Download gestartet');
+          } catch (fallbackErr) {
+            console.error('Fallback PDF-Generierung fehlgeschlagen:', fallbackErr);
+            alert('❌ PDF-Generierung fehlgeschlagen: ' + fallbackErr.message);
+          }
+        }
+      } catch(err) { 
+        console.error('PDF-Download Fehler:', err);
+        alert('❌ Fehler beim PDF-Download: ' + (err?.message || err)); 
+      }
+    });
+
+    async function addIframeToPdf(pdf, iframeEl, label){
+      const doc = iframeEl?.contentDocument || iframeEl?.contentWindow?.document;
+      if (!doc) throw new Error('Formular nicht geladen');
+      const target = doc.getElementById('questionnaire') || doc.documentElement;
+      // PII in iFrame temporär ausblenden (Nachname/Kontakt/Ansprechpartner)
+      try {
+        const idsToHide = ['name','vorname','email','kontakt_name','kontakt_vorname','kontakt_plz','kontakt_ort','kontakt_telefon','kontakt_email'];
+        idsToHide.forEach(id=>{ const el = doc.getElementById(id); if (el) el.closest('.form-group')?.classList.add('hide-for-export'); });
+        const style = doc.createElement('style');
+        style.textContent = '.hide-for-export{ display:none !important; } .pdf-button{ display:none !important; }';
+        doc.head.appendChild(style);
+      } catch(_e){}
+      const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pageWidth = 210, pageHeight = 295; // wie Einzel-Variante
+      const imgWidth = pageWidth; // volle Breite
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      // Separates Deckblatt als Kennzeichnung, damit die eigentlichen Seiten unverändert bleiben
+      if (label){
+        pdf.setFontSize(18);
+        pdf.text(String(label), pageWidth/2, pageHeight/2, { align: 'center' });
+        pdf.addPage();
+      }
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+      while (heightLeft >= 0){
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+    }
+
+    // kein Kombi-PDF mehr
+
+    const formBF = document.getElementById('befragungsbogen-send-form');
+    formBF?.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(formBF);
+      const filename = (fd.get('filename')||'Befragungsbogen.pdf').toString().trim() || 'Befragungsbogen.pdf';
+      // Keine E-Mail-Eingabe mehr nötig - wird automatisch per BCC versendet
+      try{
+        // Verwende dieselbe PDF-Generierung wie der Download-Button
+        const frame = document.getElementById('befragungsbogen-frame');
+        const win = frame?.contentWindow;
+        
+        let dataUrl;
+        if (win && typeof win.generatePDF === 'function'){
+          // Verwende die generatePDF Funktion aus dem iframe
+          const pdfBlob = await win.generatePDFForEmail();
+          if (pdfBlob) {
+            dataUrl = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.readAsDataURL(pdfBlob);
+            });
+          }
+        }
+        
+        // Fallback zur bestehenden Methode
+        if (!dataUrl) {
+          dataUrl = await generateBogenPdfDataUrl();
+        }
+        
+        // Sammle alle Formularfelder aus dem iframe
+        let formFields = {};
+        try {
+          const frame = document.getElementById('befragungsbogen-frame');
+          const doc = frame?.contentDocument || frame?.contentWindow?.document;
+          if (doc) {
+            const inputs = doc.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+              if (input.name && input.value) {
+                formFields[input.name] = input.value;
+              }
+            });
+          }
+        } catch (e) {
+          console.log('Konnte Formularfelder nicht lesen:', e);
+        }
+
+        // Kunden-ID hinzufügen falls ausgewählt
+        const customerSelect = document.getElementById('customer-select');
+        const selectedCustomerId = customerSelect ? customerSelect.value : '';
+        if (selectedCustomerId) {
+          formFields['kunden_id'] = selectedCustomerId;
+          console.log('Kunden-ID hinzugefügt:', selectedCustomerId);
+        }
+        
+        const res = await fetch('/api/send-offer', { 
+          method:'POST', 
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify({ 
+            to: 'befragungsbogen@helpcare.de', // Dummy-E-Mail für Befragungsbogen
+            filename, 
+            pdf_base64: dataUrl,
+            subject: 'Befragungsbogen',
+            body: 'Hallo,\n\nanbei befindet sich der Befragungsbogen.\n\nMit besten Grüßen',
+            form_fields: formFields,  // Alle ausgefüllten Formularfelder (inkl. Kunden-ID)
+            pdf_data: dataUrl  // Die generierte PDF-Datei
+          }) 
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error||'Versand fehlgeschlagen');
+        alert('✔️ Befragungsbogen an alle Kooperationspartner gesendet');
+      }catch(err){ alert('❌ '+(err?.message || err)); }
+    });
+
+  </script>
+
+  <!-- Navigation und Kundenverwaltung -->
+  <script>
+    // Warten bis DOM geladen ist
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM geladen, setze Event Listeners...');
+      
+      // Modal-Navigation für Kunden
+      const openCustomers = document.getElementById('nav-kunden');
+      const modalCustomers = document.getElementById('customers-modal');
+      const closeCustomers = document.getElementById('close-customers');
+      
+      console.log('openCustomers Element:', openCustomers);
+      console.log('modalCustomers Element:', modalCustomers);
+      
+      if (openCustomers && modalCustomers) {
+        openCustomers.addEventListener('click', async (e) => {
+          e.preventDefault();
+          console.log('Kunden-Button geklickt!');
+          modalCustomers.style.display = 'block';
+          await loadCustomers(); // Kunden laden wenn Modal geöffnet wird
+        });
+        
+        openCustomers.addEventListener('keydown', (e) => { 
+          if(e.key === 'Enter' || e.key === ' ') { 
+            e.preventDefault(); 
+            console.log('Kunden-Button per Tastatur aktiviert!');
+            modalCustomers.style.display = 'block';
+            loadCustomers();
+          }
+        });
+        
+        if (closeCustomers) {
+          closeCustomers.addEventListener('click', () => modalCustomers.style.display = 'none');
+        }
+        
+        modalCustomers.addEventListener('click', (e) => { 
+          if (e.target === modalCustomers) modalCustomers.style.display = 'none'; 
+        });
+      } else {
+        console.error('Kunden-Modal Elemente nicht gefunden!');
+      }
+
+      // Modal-Navigation für Kooperationspartner
+      const openKP = document.getElementById('nav-kooperationspartner');
+      const modalKP = document.getElementById('kooperationspartner-modal');
+      const closeKP = document.getElementById('close-kooperationspartner');
+      
+      console.log('openKP Element:', openKP);
+      console.log('modalKP Element:', modalKP);
+      
+      if (openKP && modalKP) {
+        openKP.addEventListener('click', async (e) => {
+          e.preventDefault();
+          console.log('Kooperationspartner-Button geklickt!');
+          modalKP.style.display = 'block';
+          await loadPartners(); // Kooperationspartner laden wenn Modal geöffnet wird
+        });
+        
+        openKP.addEventListener('keydown', (e) => { 
+          if(e.key === 'Enter' || e.key === ' ') { 
+            e.preventDefault(); 
+            console.log('Kooperationspartner-Button per Tastatur aktiviert!');
+            modalKP.style.display = 'block';
+            loadPartners();
+          }
+        });
+        
+        if (closeKP) {
+          closeKP.addEventListener('click', () => modalKP.style.display = 'none');
+        }
+        
+        modalKP.addEventListener('click', (e) => { 
+          if (e.target === modalKP) modalKP.style.display = 'none'; 
+        });
+      } else {
+        console.error('Kooperationspartner-Modal Elemente nicht gefunden!');
+      }
+
+      // Kooperationspartner-Funktionalität
+      const partnersList = document.getElementById('partners-list');
+      const addPartnerBtn = document.getElementById('add-partner-btn');
+      const partnerSearch = document.getElementById('partner-search');
+
+      // Kooperationspartner laden
+      async function loadPartners() {
+        try {
+          const res = await fetch('/api/kooperationspartner');
+          const partners = await res.json();
+          console.log('Kooperationspartner geladen:', partners);
+          renderPartners(partners);
+        } catch (e) {
+          console.error('Fehler beim Laden der Kooperationspartner:', e);
+          if (partnersList) {
+            partnersList.innerHTML = `<p>Fehler beim Laden der Kooperationspartner: ${e.message}</p>`;
+          }
+        }
+      }
+
+      // Betreuungskräfte Modal
+      const openCG = document.getElementById('nav-caregivers');
+      const modalCG = document.getElementById('caregivers-modal');
+      const closeCG = document.getElementById('close-caregivers');
+      const caregiversList = document.getElementById('caregivers-list');
+      const caregiverSearch = document.getElementById('caregiver-search');
+      const addCaregiverBtn = document.getElementById('add-caregiver-btn');
+      const caregiverProfile = document.getElementById('caregiver-profile');
+      let currentCaregiver = null;
+
+      if (openCG && modalCG){
+        openCG.addEventListener('click', async (e)=>{ e.preventDefault(); modalCG.style.display='block'; await loadCaregivers(); });
+        openCG.addEventListener('keydown', (e)=>{ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); modalCG.style.display='block'; loadCaregivers(); }});
+        closeCG?.addEventListener('click', ()=> modalCG.style.display = 'none');
+        modalCG.addEventListener('click', (e)=>{ if (e.target===modalCG) modalCG.style.display='none'; });
+      }
+
+      async function loadCaregivers(){
+        try{ const res = await fetch('/api/caregivers'); const items = await res.json(); renderCaregivers(items); }
+        catch(e){ caregiversList.innerHTML = '<p>Fehler beim Laden.</p>'; }
+      }
+
+      function renderCaregivers(items){
+        if (!Array.isArray(items) || !items.length){ caregiversList.innerHTML = '<p>Keine Betreuungskräfte vorhanden.</p>'; return; }
+        caregiversList.innerHTML = items.map(c=>`
+          <div class="customer-item" data-id="${c.id}">
+            <div class="customer-item-info">
+              <div class="customer-item-name">${c.name}</div>
+              <div class="customer-item-details">
+                ${c.email ? `<span><i class="fas fa-envelope"></i> ${c.email}</span>` : ''}
+                ${c.phone ? `<span><i class="fas fa-phone"></i> ${c.phone}</span>` : ''}
+              </div>
+              <div class="customer-item-meta">
+                <small>ID: ${c.id} • ${new Date(c.created_at).toLocaleDateString('de-DE')}</small>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        caregiversList.querySelectorAll('.customer-item').forEach(item=>{
+          item.addEventListener('click', ()=> selectCaregiver(parseInt(item.dataset.id)));
+          item.addEventListener('contextmenu', async (e)=>{
+            e.preventDefault();
+            const id = parseInt(item.dataset.id);
+            const name = item.querySelector('.customer-item-name').textContent;
+            if (confirm(`"${name}" löschen?`)){
+              const res = await fetch(`/api/caregivers/${id}`, { method:'DELETE' });
+              if (res.ok){ loadCaregivers(); } else { alert('❌ Löschen fehlgeschlagen'); }
+            }
+          });
+        });
+      }
+
+      async function selectCaregiver(id){
+        try{ const res = await fetch('/api/caregivers'); const arr = await res.json(); const c = (arr||[]).find(x=>x.id===id); if(!c) throw new Error('Nicht gefunden'); currentCaregiver=c; renderCaregiverProfile(c); }
+        catch(e){ alert('❌ Fehler: '+e.message); }
+      }
+
+      function renderCaregiverProfile(c){
+        caregiverProfile.innerHTML = `
+          <div class="customer-profile-header">
+            <div class="customer-profile-title">
+              <h2>${c.name}</h2>
+              <div class="customer-profile-meta">
+                <span><i class="fas fa-envelope"></i> ${c.email || '-'}</span>
+                <span><i class="fas fa-phone"></i> ${c.phone || '-'}</span>
+                <span><i class="fas fa-id-card"></i> ID: ${c.id}</span>
+              </div>
+            </div>
+            <div class="customer-profile-actions">
+              <button class="btn-small" id="btn-send-contract" data-id="${c.id}">Vertrag senden</button>
+            </div>
+          </div>
+          <div class="customer-profile-content">
+            <div class="profile-section">
+              <h3>Letzte Signaturantwort</h3>
+              <pre style="white-space:pre-wrap;word-break:break-word;">${c.contract_data ? JSON.stringify(c.contract_data, null, 2) : 'Noch keine Daten'}</pre>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-send-contract')?.addEventListener('click', ()=> sendContract(c.id));
+      }
+
+      addCaregiverBtn?.addEventListener('click', async ()=>{
+        const name = prompt('Name:');
+        const email = prompt('E-Mail:');
+        const phone = prompt('Telefon (optional):');
+        if (!name || !email) return;
+        const res = await fetch('/api/caregivers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, phone })});
+        if (res.ok){ await loadCaregivers(); } else { const d=await res.json().catch(()=>({})); alert('❌ '+(d.error||'Fehler')); }
+      });
+
+      caregiverSearch?.addEventListener('input', (e)=>{
+        const q = e.target.value.toLowerCase();
+        caregiversList.querySelectorAll('.customer-item').forEach(el=>{
+          const name = el.querySelector('.customer-item-name').textContent.toLowerCase();
+          const details = el.querySelector('.customer-item-details').textContent.toLowerCase();
+          el.style.display = (name.includes(q) || details.includes(q)) ? 'block' : 'none';
+        });
+      });
+
+      async function sendContract(id){
+        try{
+          // Kein Token-Prompt mehr nötig - automatischer Refresh im Backend
+          const body = { subject: 'Testvertrag Betreuungskraft', message: 'Bitte unterschreiben.' };
+          const res = await fetch(`/api/caregivers/${id}/contract`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Senden fehlgeschlagen');
+          alert('✅ Vertrag gesendet');
+          // Refresh Profil
+          selectCaregiver(id);
+        }catch(err){ alert('❌ '+(err?.message||err)); }
+      }
+
+      // Kooperationspartner rendern
+      function renderPartners(partners) {
+        if (!partnersList) return;
+        
+        if (!partners.length) {
+          partnersList.innerHTML = '<p>Keine Kooperationspartner vorhanden.</p>';
+          return;
+        }
+        
+        partnersList.innerHTML = partners.map(partner => `
+          <div class="partner-item" data-id="${partner.id}">
+            <div class="partner-item-info">
+              <div class="partner-item-name">${partner.name}</div>
+              <div class="partner-item-details">
+                <span><i class="fas fa-envelope"></i> ${partner.email}</span>
+              </div>
+              <div class="partner-item-meta">
+                <small>Erstellt: ${new Date(partner.created_at).toLocaleDateString('de-DE')}</small>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        
+        // Event Listeners für Rechtsklick hinzufügen
+        partnersList.querySelectorAll('.partner-item').forEach(item => {
+          // Rechtsklick für Löschen
+          item.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            const partnerId = parseInt(item.dataset.id);
+            const partnerName = item.querySelector('.partner-item-name').textContent;
+            
+            if (confirm(`Möchten Sie den Kooperationspartner "${partnerName}" wirklich löschen?`)) {
+              try {
+                const res = await fetch(`/api/kooperationspartner/${partnerId}`, { method: 'DELETE' });
+                if (res.ok) {
+                  alert('✅ Kooperationspartner erfolgreich gelöscht');
+                  loadPartners(); // Liste neu laden
+                } else {
+                  const error = await res.json();
+                  alert('❌ Fehler beim Löschen: ' + error.error);
+                }
+              } catch (err) {
+                alert('❌ Fehler beim Löschen: ' + err.message);
+              }
+            }
+          });
+        });
+      }
+
+      // Neuen Kooperationspartner hinzufügen
+      if (addPartnerBtn) {
+        addPartnerBtn.addEventListener('click', () => {
+          const name = prompt('Firmenname:');
+          const email = prompt('E-Mail:');
+          
+          if (!name || !email) return;
+          
+          addPartner({ name, email });
+        });
+      }
+
+      // Kooperationspartner hinzufügen
+      async function addPartner(partnerData) {
+        try {
+          const res = await fetch('/api/kooperationspartner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(partnerData)
+          });
+          
+          if (res.ok) {
+            alert('✅ Kooperationspartner erfolgreich hinzugefügt');
+            loadPartners(); // Liste neu laden
+          } else {
+            const error = await res.json();
+            alert('❌ Fehler beim Hinzufügen: ' + error.error);
+          }
+        } catch (e) {
+          console.error('Fehler beim Hinzufügen des Kooperationspartners:', e);
+          alert('❌ Fehler beim Hinzufügen: ' + e.message);
+        }
+      }
+
+      // Suchfunktion für Kooperationspartner
+      if (partnerSearch) {
+        partnerSearch.addEventListener('input', (e) => {
+          const searchTerm = e.target.value.toLowerCase();
+          const partnerItems = partnersList.querySelectorAll('.partner-item');
+          
+          partnerItems.forEach(item => {
+            const name = item.querySelector('.partner-item-name').textContent.toLowerCase();
+            const email = item.querySelector('.partner-item-details span').textContent.toLowerCase();
+            
+            if (name.includes(searchTerm) || email.includes(searchTerm)) {
+              item.style.display = 'block';
+            } else {
+              item.style.display = 'none';
+            }
+          });
+        });
+      }
+
+      // Modal-Navigation für Befragungsbogen (bereits vorhanden, aber erweitert)
+      const openBF = document.getElementById('nav-befragungsbogen');
+      const modalBF = document.getElementById('befragungsbogen-modal');
+      const closeBF = document.getElementById('close-befragungsbogen');
+      
+      if (openBF && modalBF) {
+        openBF.addEventListener('click', () => {
+          modalBF.style.display = 'block';
+          loadCustomersForDropdown(); // Kunden für Dropdown laden
+        });
+        openBF.addEventListener('keydown', (e) => { 
+          if(e.key === 'Enter' || e.key === ' ') { 
+            e.preventDefault(); 
+            modalBF.style.display = 'block';
+            loadCustomersForDropdown();
+          }
+        });
+        if (closeBF) {
+          closeBF.addEventListener('click', () => modalBF.style.display = 'none');
+        }
+        modalBF.addEventListener('click', (e) => { 
+          if (e.target === modalBF) modalBF.style.display = 'none'; 
+        });
+      }
+
+      // Kundenverwaltung
+      const customersList = document.getElementById('customers-list');
+      const customerSearch = document.getElementById('customer-search');
+      const addCustomerBtn = document.getElementById('add-customer-btn');
+      const customerProfile = document.getElementById('customer-profile');
+      let currentCustomer = null;
+
+      // Kunden laden
+      async function loadCustomers() {
+      try {
+        console.log('Lade Kunden...');
+        const res = await fetch('/api/customers');
+        console.log('Response status:', res.status);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const customers = await res.json();
+        console.log('Kunden geladen:', customers);
+        renderCustomers(customers);
+      } catch (e) {
+        console.error('Fehler beim Laden der Kunden:', e);
+        customersList.innerHTML = `<p>Fehler beim Laden der Kunden: ${e.message}</p>`;
+      }
+    }
+
+    // Kunden rendern
+    function renderCustomers(customers) {
+      if (!customers.length) {
+        customersList.innerHTML = '<p>Keine Kunden vorhanden.</p>';
+        return;
+      }
+      
+      customersList.innerHTML = customers.map(customer => `
+        <div class="customer-item" data-id="${customer.id}">
+          <div class="customer-item-info">
+            <div class="customer-item-name">${customer.name}</div>
+            <div class="customer-item-details">
+              ${customer.email ? `<span><i class="fas fa-envelope"></i> ${customer.email}</span>` : ''}
+              ${customer.phone ? `<span><i class="fas fa-phone"></i> ${customer.phone}</span>` : ''}
+            </div>
+            <div class="customer-item-meta">
+              <small>ID: ${customer.id} • Letzter Kontakt: ${new Date(customer.last_contact).toLocaleDateString('de-DE')}</small>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      // Event Listeners für Kundenauswahl und Rechtsklick hinzufügen
+      customersList.querySelectorAll('.customer-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const customerId = parseInt(item.dataset.id);
+          selectCustomer(customerId);
+        });
+        
+        // Rechtsklick für Löschen
+        item.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const customerId = parseInt(item.dataset.id);
+          const customerName = item.querySelector('.customer-item-name').textContent;
+          
+          if (confirm(`Möchten Sie den Kunden "${customerName}" wirklich löschen?`)) {
+            deleteCustomer(customerId);
+          }
+        });
+      });
+    }
+
+      // Kunde auswählen
+      async function selectCustomer(customerId) {
+        try {
+          console.log('Wähle Kunde aus:', customerId);
+          const res = await fetch(`/api/customers/${customerId}`);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          const customer = await res.json();
+          console.log('Kunde geladen:', customer);
+          currentCustomer = customer;
+          renderCustomerProfile(customer);
+          
+          // Aktive Auswahl visuell markieren
+          document.querySelectorAll('.customer-item').forEach(item => {
+            item.classList.remove('active');
+          });
+          document.querySelector(`[data-id="${customerId}"]`).classList.add('active');
+        } catch (e) {
+          console.error('Fehler beim Laden des Kundenprofils:', e);
+          alert('❌ Fehler beim Laden des Kundenprofils: ' + e.message);
+        }
+      }
+
+      // Kundenprofil rendern
+      function renderCustomerProfile(customer) {
+        console.log('Rendere Kundenprofil für:', customer.name);
+        const offerData = customer.offer_data || {};
+        const questionnaireData = customer.questionnaire_data || {};
+        const contactHistory = customer.contact_history || [];
+        
+        console.log('Angebot-Daten:', offerData);
+        console.log('Befragungsbogen-Daten:', questionnaireData);
+        console.log('Kontakthistorie:', contactHistory);
+      
+      customerProfile.innerHTML = `
+        <div class="customer-profile-header">
+          <div class="customer-profile-title">
+            <h2>${customer.name}</h2>
+            <div class="customer-profile-meta">
+              <span><i class="fas fa-envelope"></i> ${customer.email || 'Keine E-Mail'}</span>
+              <span><i class="fas fa-phone"></i> ${customer.phone || 'Keine Telefonnummer'}</span>
+              <span><i class="fas fa-id-card"></i> ID: ${customer.id}</span>
+            </div>
+          </div>
+          <div class="customer-profile-actions">
+            <button class="btn-small edit-customer-btn" data-customer-id="${customer.id}">Bearbeiten</button>
+            <button class="btn-small delete-customer-btn" data-customer-id="${customer.id}">Löschen</button>
+          </div>
+        </div>
+        
+        <div class="customer-profile-content">
+          <div class="customer-profile-tabs">
+            <button class="tab-btn active" data-tab="overview">Übersicht</button>
+            <button class="tab-btn" data-tab="offers">Angebote</button>
+            <button class="tab-btn" data-tab="questionnaires">Befragungsbögen</button>
+            <button class="tab-btn" data-tab="history">Kontakthistorie</button>
+          </div>
+          
+          <div class="customer-profile-tab-content">
+            <div id="tab-overview" class="tab-panel active">
+              <div class="profile-section">
+                <h3>Grunddaten</h3>
+                <div class="profile-grid">
+                  <div class="profile-item">
+                    <label>Name:</label>
+                    <span>${customer.name}</span>
+                  </div>
+                  <div class="profile-item">
+                    <label>E-Mail:</label>
+                    <span>${customer.email || '-'}</span>
+                  </div>
+                  <div class="profile-item">
+                    <label>Telefon:</label>
+                    <span>${customer.phone || '-'}</span>
+                  </div>
+                  <div class="profile-item">
+                    <label>ID:</label>
+                    <span>${customer.id}</span>
+                  </div>
+                  <div class="profile-item">
+                    <label>Erstellt:</label>
+                    <span>${new Date(customer.created_at).toLocaleDateString('de-DE')}</span>
+                  </div>
+                  <div class="profile-item">
+                    <label>Letzter Kontakt:</label>
+                    <span>${new Date(customer.last_contact).toLocaleDateString('de-DE')}</span>
+                  </div>
+                </div>
+              </div>
+              
+              ${customer.notes ? `
+              <div class="profile-section">
+                <h3>Notizen</h3>
+                <div class="profile-notes">${customer.notes}</div>
+              </div>
+              ` : ''}
+            </div>
+            
+            <div id="tab-offers" class="tab-panel">
+              <div class="profile-section">
+                <h3>Angebote</h3>
+                ${offerData.pdf_data ? `
+                  <div class="pdf-display">
+                    <iframe src="${offerData.pdf_data}" width="100%" height="600px" style="border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>
+                    <div class="pdf-actions">
+                      <a href="${offerData.pdf_data}" target="_blank" class="btn-coral">
+                        <i class="fas fa-external-link-alt"></i> In neuem Tab öffnen
+                      </a>
+                      <a href="${offerData.pdf_data}" download="${offerData.filename || 'Angebot.pdf'}" class="btn-coral">
+                        <i class="fas fa-download"></i> PDF herunterladen
+                      </a>
+                    </div>
+                  </div>
+                ` : '<p>Keine Angebot-PDF vorhanden.</p>'}
+              </div>
+            </div>
+            
+            <div id="tab-questionnaires" class="tab-panel">
+              <div class="profile-section">
+                <h3>Befragungsbogen</h3>
+                ${questionnaireData.pdf_data ? `
+                  <div class="pdf-display">
+                    <iframe src="${questionnaireData.pdf_data}" width="100%" height="600px" style="border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>
+                    <div class="pdf-actions">
+                      <a href="${questionnaireData.pdf_data}" target="_blank" class="btn-coral">
+                        <i class="fas fa-external-link-alt"></i> In neuem Tab öffnen
+                      </a>
+                      <a href="${questionnaireData.pdf_data}" download="${questionnaireData.filename || 'Befragungsbogen.pdf'}" class="btn-coral">
+                        <i class="fas fa-download"></i> PDF herunterladen
+                      </a>
+                    </div>
+                  </div>
+                ` : '<p>Keine Befragungsbogen-PDF vorhanden.</p>'}
+              </div>
+            </div>
+            
+            <div id="tab-history" class="tab-panel">
+              <div class="profile-section">
+                <h3>Kontakthistorie</h3>
+                ${contactHistory.length > 0 ? `
+                  <div class="history-list">
+                    ${contactHistory.map(entry => `
+                      <div class="history-item">
+                        <div class="history-type">${getHistoryTypeLabel(entry.type)}</div>
+                        <div class="history-time">${new Date(entry.timestamp).toLocaleString('de-DE')}</div>
+                        ${entry.details ? `<div class="history-details">${JSON.stringify(entry.details)}</div>` : ''}
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : '<p>Keine Kontakthistorie vorhanden.</p>'}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Event Listeners für Tabs hinzufügen
+      customerProfile.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const tabName = e.target.dataset.tab;
+          showCustomerTab(tabName, e.target);
+        });
+      });
+      
+      // Event Listeners für Bearbeiten/Löschen Buttons
+      customerProfile.querySelectorAll('.edit-customer-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const customerId = parseInt(e.target.dataset.customerId);
+          editCustomer(customerId);
+        });
+      });
+      
+      customerProfile.querySelectorAll('.delete-customer-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const customerId = parseInt(e.target.dataset.customerId);
+          deleteCustomer(customerId);
+        });
+      });
+    }
+
+      // Tab-Funktionen
+      function showCustomerTab(tabName, clickedButton) {
+        console.log('Wechsle zu Tab:', tabName);
+        
+        // Alle Tabs verstecken
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+          panel.classList.remove('active');
+        });
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Gewählten Tab anzeigen
+        const targetPanel = document.getElementById(`tab-${tabName}`);
+        if (targetPanel) {
+          targetPanel.classList.add('active');
+        }
+        
+        if (clickedButton) {
+          clickedButton.classList.add('active');
+        }
+      }
+
+    // Hilfsfunktion für Kontakthistorie-Labels
+    function getHistoryTypeLabel(type) {
+      const labels = {
+        'offer_sent': 'Angebot versendet',
+        'questionnaire_sent': 'Befragungsbogen versendet',
+        'manual_note': 'Manuelle Notiz'
+      };
+      return labels[type] || type;
+    }
+
+    // Kunde bearbeiten
+    function editCustomer(customerId) {
+      // TODO: Modal für Bearbeitung öffnen
+      alert('Bearbeitung für Kunde ' + customerId + ' wird implementiert');
+    }
+
+    // Kunde löschen
+    async function deleteCustomer(customerId) {
+      if (!confirm('Kunde wirklich löschen?')) return;
+      
+      try {
+        const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Löschen fehlgeschlagen');
+        await loadCustomers();
+      } catch (e) {
+        alert('❌ Fehler beim Löschen: ' + e.message);
+      }
+    }
+
+    // Neuen Kunde hinzufügen
+    addCustomerBtn.addEventListener('click', () => {
+      const name = prompt('Kundenname:');
+      const email = prompt('E-Mail (optional):');
+      const phone = prompt('Telefon (optional):');
+      
+      if (!name) return;
+      
+      addCustomer({ name, email, phone });
+    });
+
+    // Kunde hinzufügen
+    async function addCustomer(customerData) {
+      try {
+        const res = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(customerData)
+        });
+        
+        if (!res.ok) throw new Error('Hinzufügen fehlgeschlagen');
+        await loadCustomers();
+      } catch (e) {
+        alert('❌ Fehler beim Hinzufügen: ' + e.message);
+      }
+    }
+
+    // Suche
+    customerSearch.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const cards = customersList.querySelectorAll('.customer-card');
+      
+      cards.forEach(card => {
+        const name = card.querySelector('.customer-name').textContent.toLowerCase();
+        const id = card.dataset.id;
+        const visible = name.includes(query) || id.includes(query);
+        card.style.display = visible ? 'block' : 'none';
+      });
+    });
+
+    // Befragungsbogen-Kundenauswahl
+    const customerSelect = document.getElementById('customer-select');
+    
+    // Kunden für Dropdown laden
+    async function loadCustomersForDropdown() {
+      try {
+        console.log('Lade Kunden für Dropdown...');
+        const res = await fetch('/api/customers');
+        console.log('Dropdown Response status:', res.status);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const customers = await res.json();
+        console.log('Dropdown Kunden geladen:', customers);
+        
+        // Dropdown leeren und Kunden hinzufügen
+        customerSelect.innerHTML = '<option value="">Neuen Kunden erstellen</option>';
+        customers.forEach(customer => {
+          const option = document.createElement('option');
+          option.value = customer.id;
+          option.textContent = `${customer.name} (${customer.email || 'Keine E-Mail'})`;
+          customerSelect.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Fehler beim Laden der Kunden für Dropdown:', e);
+        customerSelect.innerHTML = '<option value="">Fehler beim Laden</option>';
+      }
+    }
+
+    // Befragungsbogen-Daten speichern (wird vom iframe aufgerufen)
+    window.saveQuestionnaireData = async function(data) {
+      const selectedCustomerId = customerSelect.value;
+      
+      if (!selectedCustomerId) {
+        alert('Bitte wählen Sie einen Kunden aus oder erstellen Sie einen neuen.');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/customers/${selectedCustomerId}/questionnaire`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (!res.ok) throw new Error('Speichern fehlgeschlagen');
+        
+        alert('✔️ Befragungsbogen-Daten gespeichert');
+      } catch (e) {
+        alert('❌ Fehler beim Speichern: ' + e.message);
+      }
+    };
+    
+    }); // Ende DOMContentLoaded
   </script>
 </body>
 </html>
