@@ -1397,39 +1397,43 @@
             removeContainer: true,
             imageTimeout: 0,
             onclone: function(clonedDoc) {
-                // Ersetze Textareas durch statische, mehrzeilige Divs, damit html2canvas nichts abschneidet
+                // Ersetze Textareas durch statische Divs, aber behalte das exakte Layout bei
                 const clonedTextareas = clonedDoc.querySelectorAll('textarea');
                 clonedTextareas.forEach(textarea => {
-                    const wrapper = clonedDoc.createElement('div');
-                    const display = clonedDoc.createElement('div');
-                    // Text aus dem Original übernehmen
                     const text = textarea.value || '';
-                    display.textContent = text;
-                    // Visuell so nah wie möglich an die Textarea anlehnen
                     const cs = clonedDoc.defaultView.getComputedStyle(textarea);
-                    display.style.whiteSpace = 'pre-wrap';
-                    display.style.wordWrap = 'break-word';
-                    display.style.overflowWrap = 'break-word';
-                    display.style.wordBreak = 'break-word';
-                    display.style.hyphens = 'auto';
-                    display.style.fontFamily = cs.fontFamily;
-                    display.style.fontSize = cs.fontSize;
-                    display.style.lineHeight = cs.lineHeight;
-                    display.style.color = cs.color;
-                    display.style.padding = cs.padding;
-                    display.style.border = cs.border;
-                    display.style.borderRadius = cs.borderRadius;
-                    display.style.backgroundColor = cs.backgroundColor || '#ffffff';
-                    display.style.minHeight = cs.minHeight;
-                    display.style.width = cs.width;
-                    display.style.boxSizing = 'border-box';
-                    // Wrapper nimmt exaktes Layout der Textarea ein
-                    wrapper.style.display = cs.display === 'inline' ? 'inline-block' : cs.display;
-                    wrapper.style.width = cs.width;
-                    // Original-Textarea im Clone ausblenden und ersetzen
-                    textarea.style.display = 'none';
-                    textarea.parentNode.insertBefore(wrapper, textarea);
-                    wrapper.appendChild(display);
+                    
+                    // Erstelle ein Div das exakt die Textarea ersetzt
+                    const replacement = clonedDoc.createElement('div');
+                    replacement.textContent = text;
+                    
+                    // Kopiere alle wichtigen CSS-Eigenschaften exakt
+                    replacement.style.position = cs.position;
+                    replacement.style.top = cs.top;
+                    replacement.style.left = cs.left;
+                    replacement.style.width = cs.width;
+                    replacement.style.height = cs.height;
+                    replacement.style.margin = cs.margin;
+                    replacement.style.padding = cs.padding;
+                    replacement.style.border = cs.border;
+                    replacement.style.borderRadius = cs.borderRadius;
+                    replacement.style.backgroundColor = cs.backgroundColor || '#ffffff';
+                    replacement.style.fontFamily = cs.fontFamily;
+                    replacement.style.fontSize = cs.fontSize;
+                    replacement.style.lineHeight = cs.lineHeight;
+                    replacement.style.color = cs.color;
+                    replacement.style.whiteSpace = 'pre-wrap';
+                    replacement.style.wordWrap = 'break-word';
+                    replacement.style.overflowWrap = 'break-word';
+                    replacement.style.wordBreak = 'break-word';
+                    replacement.style.boxSizing = 'border-box';
+                    replacement.style.display = cs.display;
+                    replacement.style.float = cs.float;
+                    replacement.style.clear = cs.clear;
+                    replacement.style.verticalAlign = cs.verticalAlign;
+                    
+                    // Ersetze die Textarea direkt
+                    textarea.parentNode.replaceChild(replacement, textarea);
                 });
             }
         });
