@@ -1187,13 +1187,44 @@ async function generatePDF() {
             }
         });
 
-        const imgData = canvas.toDataURL('image/png');
+        function trimCanvas(sourceCanvas) {
+            const ctx = sourceCanvas.getContext('2d');
+            const { width, height } = sourceCanvas;
+            const pixels = ctx.getImageData(0, 0, width, height).data;
+            let top = null, left = null, right = null, bottom = null;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2], a = pixels[idx + 3];
+                    if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
+                        if (top === null) top = y;
+                        if (left === null || x < left) left = x;
+                        if (right === null || x > right) right = x;
+                        bottom = y;
+                    }
+                }
+            }
+            if (top === null) return sourceCanvas;
+            const cropW = right - left + 1;
+            const cropH = bottom - top + 1;
+            const out = document.createElement('canvas');
+            out.width = cropW;
+            out.height = cropH;
+            const octx = out.getContext('2d');
+            octx.fillStyle = '#ffffff';
+            octx.fillRect(0, 0, cropW, cropH);
+            octx.drawImage(sourceCanvas, left, top, cropW, cropH, 0, 0, cropW, cropH);
+            return out;
+        }
+
+        const cropped = trimCanvas(canvas);
+        const imgData = cropped.toDataURL('image/png');
         
         // Erstelle PDF
         const pdf = new jsPDF('p', 'mm', 'a4');
         const imgWidth = 210;
         const pageHeight = 295;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const imgHeight = (cropped.height * imgWidth) / cropped.width;
         let heightLeft = imgHeight;
 
         let position = 0;
