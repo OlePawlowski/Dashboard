@@ -925,50 +925,35 @@ async function generatePDF() {
         
         // Erstelle Canvas vom HTML
         const canvas = await html2canvas(questionnaire, {
-            scale: 2,
+            scale: 1.5,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
-            // wichtig für lange Felder
-            height: questionnaire.scrollHeight,
-            width: questionnaire.scrollWidth,
-            foreignObjectRendering: true,
-            removeContainer: true,
-            imageTimeout: 0,
+            height: questionnaire.offsetHeight,
+            width: questionnaire.offsetWidth,
+            foreignObjectRendering: false,
+            removeContainer: false,
+            imageTimeout: 5000,
             onclone: function(clonedDoc) {
                 const clonedTextareas = clonedDoc.querySelectorAll('textarea');
                 clonedTextareas.forEach(textarea => {
                     const text = textarea.value || '';
-                    const cs = clonedDoc.defaultView.getComputedStyle(textarea);
                     
                     const replacement = clonedDoc.createElement('div');
                     replacement.textContent = text;
                     
-                    // Kopiere alle wichtigen CSS-Eigenschaften exakt
-                    replacement.style.position = cs.position;
-                    replacement.style.top = cs.top;
-                    replacement.style.left = cs.left;
-                    replacement.style.width = cs.width;
-                    replacement.style.height = cs.height;
-                    replacement.style.margin = cs.margin;
-                    replacement.style.padding = cs.padding;
-                    replacement.style.border = cs.border;
-                    replacement.style.borderRadius = cs.borderRadius;
-                    replacement.style.backgroundColor = cs.backgroundColor || '#ffffff';
-                    replacement.style.fontFamily = cs.fontFamily;
-                    replacement.style.fontSize = cs.fontSize;
-                    replacement.style.lineHeight = cs.lineHeight;
-                    replacement.style.color = cs.color;
                     replacement.style.whiteSpace = 'pre-wrap';
                     replacement.style.wordWrap = 'break-word';
-                    replacement.style.overflowWrap = 'break-word';
-                    replacement.style.wordBreak = 'break-word';
-                    replacement.style.boxSizing = 'border-box';
-                    replacement.style.display = cs.display;
-                    replacement.style.float = cs.float;
-                    replacement.style.clear = cs.clear;
-                    replacement.style.verticalAlign = cs.verticalAlign;
+                    replacement.style.fontFamily = 'inherit';
+                    replacement.style.fontSize = 'inherit';
+                    replacement.style.color = 'inherit';
+                    replacement.style.backgroundColor = 'transparent';
+                    replacement.style.border = 'none';
+                    replacement.style.padding = '0';
+                    replacement.style.margin = '0';
+                    replacement.style.width = '100%';
+                    replacement.style.minHeight = '20px';
                     
                     textarea.parentNode.replaceChild(replacement, textarea);
                 });

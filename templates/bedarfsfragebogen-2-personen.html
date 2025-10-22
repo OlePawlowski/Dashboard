@@ -1385,54 +1385,42 @@
         
         // Erstelle Canvas vom HTML
         const canvas = await html2canvas(questionnaire, {
-            scale: 2,
+            scale: 1.5,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
-            height: questionnaire.scrollHeight,
-            width: questionnaire.scrollWidth,
-            // Zusätzliche Optionen für bessere Text-Darstellung
-            foreignObjectRendering: true,
-            removeContainer: true,
-            imageTimeout: 0,
+            // Wichtig: Verwende die natürliche Größe des Elements
+            height: questionnaire.offsetHeight,
+            width: questionnaire.offsetWidth,
+            // Deaktiviere problematische Optionen
+            foreignObjectRendering: false,
+            removeContainer: false,
+            imageTimeout: 5000,
             onclone: function(clonedDoc) {
-                // Ersetze Textareas durch statische Divs, aber behalte das exakte Layout bei
+                // Nur Textareas durch Divs ersetzen, aber Layout nicht ändern
                 const clonedTextareas = clonedDoc.querySelectorAll('textarea');
                 clonedTextareas.forEach(textarea => {
                     const text = textarea.value || '';
-                    const cs = clonedDoc.defaultView.getComputedStyle(textarea);
                     
-                    // Erstelle ein Div das exakt die Textarea ersetzt
+                    // Erstelle ein einfaches Div mit dem Text
                     const replacement = clonedDoc.createElement('div');
                     replacement.textContent = text;
                     
-                    // Kopiere alle wichtigen CSS-Eigenschaften exakt
-                    replacement.style.position = cs.position;
-                    replacement.style.top = cs.top;
-                    replacement.style.left = cs.left;
-                    replacement.style.width = cs.width;
-                    replacement.style.height = cs.height;
-                    replacement.style.margin = cs.margin;
-                    replacement.style.padding = cs.padding;
-                    replacement.style.border = cs.border;
-                    replacement.style.borderRadius = cs.borderRadius;
-                    replacement.style.backgroundColor = cs.backgroundColor || '#ffffff';
-                    replacement.style.fontFamily = cs.fontFamily;
-                    replacement.style.fontSize = cs.fontSize;
-                    replacement.style.lineHeight = cs.lineHeight;
-                    replacement.style.color = cs.color;
+                    // Kopiere nur die essentiellen Styles
                     replacement.style.whiteSpace = 'pre-wrap';
                     replacement.style.wordWrap = 'break-word';
-                    replacement.style.overflowWrap = 'break-word';
-                    replacement.style.wordBreak = 'break-word';
-                    replacement.style.boxSizing = 'border-box';
-                    replacement.style.display = cs.display;
-                    replacement.style.float = cs.float;
-                    replacement.style.clear = cs.clear;
-                    replacement.style.verticalAlign = cs.verticalAlign;
+                    replacement.style.fontFamily = 'inherit';
+                    replacement.style.fontSize = 'inherit';
+                    replacement.style.color = 'inherit';
+                    replacement.style.backgroundColor = 'transparent';
+                    replacement.style.border = 'none';
+                    replacement.style.padding = '0';
+                    replacement.style.margin = '0';
+                    replacement.style.width = '100%';
+                    replacement.style.minHeight = '20px';
                     
-                    // Ersetze die Textarea direkt
+                    // Ersetze die Textarea
                     textarea.parentNode.replaceChild(replacement, textarea);
                 });
             }
