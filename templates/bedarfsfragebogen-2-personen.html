@@ -1385,43 +1385,25 @@
         
         // Erstelle Canvas vom HTML
         const canvas = await html2canvas(questionnaire, {
-            scale: 1.5,
+            scale: 2,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
-            // Wichtig: Verwende die natürliche Größe des Elements
-            height: questionnaire.offsetHeight,
-            width: questionnaire.offsetWidth,
-            // Deaktiviere problematische Optionen
-            foreignObjectRendering: false,
-            removeContainer: false,
-            imageTimeout: 5000,
+            height: questionnaire.scrollHeight,
+            width: questionnaire.scrollWidth,
+            foreignObjectRendering: true,
+            removeContainer: true,
+            imageTimeout: 0,
             onclone: function(clonedDoc) {
-                // Nur Textareas durch Divs ersetzen, aber Layout nicht ändern
+                // Nur Textareas minimal anpassen - Layout nicht ändern
                 const clonedTextareas = clonedDoc.querySelectorAll('textarea');
                 clonedTextareas.forEach(textarea => {
-                    const text = textarea.value || '';
-                    
-                    // Erstelle ein einfaches Div mit dem Text
-                    const replacement = clonedDoc.createElement('div');
-                    replacement.textContent = text;
-                    
-                    // Kopiere nur die essentiellen Styles
-                    replacement.style.whiteSpace = 'pre-wrap';
-                    replacement.style.wordWrap = 'break-word';
-                    replacement.style.fontFamily = 'inherit';
-                    replacement.style.fontSize = 'inherit';
-                    replacement.style.color = 'inherit';
-                    replacement.style.backgroundColor = 'transparent';
-                    replacement.style.border = 'none';
-                    replacement.style.padding = '0';
-                    replacement.style.margin = '0';
-                    replacement.style.width = '100%';
-                    replacement.style.minHeight = '20px';
-                    
-                    // Ersetze die Textarea
-                    textarea.parentNode.replaceChild(replacement, textarea);
+                    // Einfach nur white-space und overflow ändern
+                    textarea.style.whiteSpace = 'pre-wrap';
+                    textarea.style.overflow = 'visible';
+                    textarea.style.height = 'auto';
+                    textarea.style.minHeight = textarea.scrollHeight + 'px';
                 });
             }
         });
