@@ -1168,7 +1168,41 @@ async function generatePDF() {
         const canvas = await html2canvas(questionnaire, {
             scale: 2,
             useCORS: true,
-            allowTaint: true
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            height: questionnaire.scrollHeight,
+            width: questionnaire.scrollWidth,
+            foreignObjectRendering: true,
+            removeContainer: true,
+            imageTimeout: 0,
+            onclone: function(clonedDoc) {
+                const clonedTextareas = clonedDoc.querySelectorAll('textarea');
+                clonedTextareas.forEach(textarea => {
+                    const display = clonedDoc.createElement('div');
+                    const text = textarea.value || '';
+                    display.textContent = text;
+                    const cs = clonedDoc.defaultView.getComputedStyle(textarea);
+                    display.style.whiteSpace = 'pre-wrap';
+                    display.style.wordWrap = 'break-word';
+                    display.style.overflowWrap = 'break-word';
+                    display.style.wordBreak = 'break-word';
+                    display.style.hyphens = 'auto';
+                    display.style.fontFamily = cs.fontFamily;
+                    display.style.fontSize = cs.fontSize;
+                    display.style.lineHeight = cs.lineHeight;
+                    display.style.color = cs.color;
+                    display.style.padding = cs.padding;
+                    display.style.border = cs.border;
+                    display.style.borderRadius = cs.borderRadius;
+                    display.style.backgroundColor = cs.backgroundColor || '#ffffff';
+                    display.style.minHeight = cs.minHeight;
+                    display.style.width = cs.width;
+                    display.style.boxSizing = 'border-box';
+                    textarea.style.display = 'none';
+                    textarea.parentNode.insertBefore(display, textarea);
+                });
+            }
         });
 
         const imgData = canvas.toDataURL('image/png');

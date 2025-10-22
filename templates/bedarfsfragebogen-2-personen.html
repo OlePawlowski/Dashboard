@@ -87,7 +87,21 @@
         border: 1px solid #ccc;
         border-radius: 2px;
         background: white;
-        height: 20px;
+        height: auto;
+        min-height: 20px;
+        resize: vertical;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .form-group textarea {
+        height: auto;
+        min-height: 20px;
+        resize: vertical;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 
     .form-group input:focus,
@@ -130,6 +144,9 @@
         border-radius: 2px;
         resize: vertical;
         height: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 
     .compact-grid {
@@ -426,7 +443,7 @@
                         id="krankheitsverlauf1"
                         name="Krankheitsverlauf1"
                         placeholder="Aggressivität, Orientierungsstörungen, zeitliche/örtliche/psychische Störungen..."
-                        style="width: 100%; height: 100px; padding: 6px;"
+                        style="width: 100%; min-height: 100px; height: auto; padding: 6px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"
                     ></textarea>
                 </div>
             
@@ -439,7 +456,7 @@
                         id="krankheitsverlauf2"
                         name="Krankheitsverlauf2"
                         placeholder="Aggressivität, Orientierungsstörungen, zeitliche/örtliche/psychische Störungen..."
-                        style="width: 100%; height: 100px; padding: 6px;"
+                        style="width: 100%; min-height: 100px; height: auto; padding: 6px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"
                     ></textarea>
                 </div>
             </div>
@@ -838,6 +855,9 @@
         font-size: 12px;
         padding: 4px;
         resize: vertical;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 
     .section-title {
@@ -885,8 +905,8 @@
         <!-- Einschränkungen -->
         <tr>
         <td>Weitere nennenswerte Einschränkungen</td>
-        <td style="padding-left: 0px;"><textarea name="einschraenkungen_p1" style="padding-right: 0px;" rows="3" placeholder="..."></textarea></td>
-        <td style="padding-left: 0px;"><textarea name="einschraenkungen_p2" style="padding-right: 0px;" rows="3" placeholder="..."></textarea></td>
+        <td style="padding-left: 0px;"><textarea name="einschraenkungen_p1" style="padding-right: 0px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;" rows="3" placeholder="..."></textarea></td>
+        <td style="padding-left: 0px;"><textarea name="einschraenkungen_p2" style="padding-right: 0px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;" rows="3" placeholder="..."></textarea></td>
         </tr>
 
         <!-- Art der Versorgung -->
@@ -1198,16 +1218,16 @@
         <div class="form-group">
             <div class="section-subtitle">Bitte schildern Sie einen Tagesablauf in kurzen Sätzen:</div>
             <div class="form-row">
-                <div class="form-group"><label for="tagesablauf_morgens">Morgens:</label><textarea id="tagesablauf_morgens" name="tagesablauf_morgens" style="min-height: 40px; font-size: 9px;"></textarea></div>
-                <div class="form-group"><label for="tagesablauf_vormittags">Vormittags:</label><textarea id="tagesablauf_vormittags" name="tagesablauf_vormittags" style="min-height: 40px; font-size: 9px;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_morgens">Morgens:</label><textarea id="tagesablauf_morgens" name="tagesablauf_morgens" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_vormittags">Vormittags:</label><textarea id="tagesablauf_vormittags" name="tagesablauf_vormittags" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label for="tagesablauf_mittags">Mittags:</label><textarea id="tagesablauf_mittags" name="tagesablauf_mittags" style="min-height: 40px; font-size: 9px;"></textarea></div>
-                <div class="form-group"><label for="tagesablauf_nachmittags">Nachmittags:</label><textarea id="tagesablauf_nachmittags" name="tagesablauf_nachmittags" style="min-height: 40px; font-size: 9px;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_mittags">Mittags:</label><textarea id="tagesablauf_mittags" name="tagesablauf_mittags" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_nachmittags">Nachmittags:</label><textarea id="tagesablauf_nachmittags" name="tagesablauf_nachmittags" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label for="tagesablauf_abends">Abends:</label><textarea id="tagesablauf_abends" name="tagesablauf_abends" style="min-height: 40px; font-size: 9px;"></textarea></div>
-                <div class="form-group"><label for="tagesablauf_nachts">Nachts:</label><textarea id="tagesablauf_nachts" name="tagesablauf_nachts" style="min-height: 40px; font-size: 9px;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_abends">Abends:</label><textarea id="tagesablauf_abends" name="tagesablauf_abends" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
+                <div class="form-group"><label for="tagesablauf_nachts">Nachts:</label><textarea id="tagesablauf_nachts" name="tagesablauf_nachts" style="min-height: 40px; height: auto; font-size: 9px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;"></textarea></div>
             </div>
         </div>
 
@@ -1227,6 +1247,78 @@
     </div>
 
     <script>
+    // Funktion zum automatischen Anpassen der Textarea-Höhe
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(textarea.scrollHeight, textarea.getAttribute('data-min-height') || 20) + 'px';
+    }
+
+    // Funktion zum Vorbereiten der Textareas für html2canvas
+    function prepareTextareasForCanvas() {
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            // Stelle sicher, dass die CSS-Eigenschaften für html2canvas optimal sind
+            textarea.style.whiteSpace = 'pre-wrap';
+            textarea.style.wordWrap = 'break-word';
+            textarea.style.overflowWrap = 'break-word';
+            textarea.style.wordBreak = 'break-word';
+            textarea.style.hyphens = 'auto';
+            
+            // Erzwinge eine Neuberechnung der Höhe
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+            
+            // Für sehr lange Texte: Füge manuelle Zeilenumbrüche hinzu
+            const text = textarea.value;
+            if (text && text.length > 50) { // Nur für längere Texte
+                const words = text.split(' ');
+                const maxWordsPerLine = Math.max(8, Math.floor(textarea.offsetWidth / 60)); // Anpassung basierend auf Breite
+                let lines = [];
+                let currentLine = '';
+                
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    if (currentLine.split(' ').length >= maxWordsPerLine) {
+                        lines.push(currentLine.trim());
+                        currentLine = word;
+                    } else {
+                        currentLine += (currentLine ? ' ' : '') + word;
+                    }
+                }
+                
+                if (currentLine.trim()) {
+                    lines.push(currentLine.trim());
+                }
+                
+                // Setze den Text mit Zeilenumbrüchen
+                textarea.value = lines.join('\n');
+                
+                // Passe die Höhe erneut an
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+            }
+        });
+    }
+
+    // Event Listener für alle Textareas hinzufügen
+    document.addEventListener('DOMContentLoaded', function() {
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            // Speichere die ursprüngliche min-height
+            const computedStyle = window.getComputedStyle(textarea);
+            const minHeight = computedStyle.minHeight || '20px';
+            textarea.setAttribute('data-min-height', parseInt(minHeight));
+            
+            // Auto-resize bei Eingabe
+            textarea.addEventListener('input', function() {
+                autoResizeTextarea(this);
+            });
+            
+            // Initial resize
+            autoResizeTextarea(textarea);
+        });
+    });
+
     async function generatePDF() {
         const loading = document.getElementById('loading');
         
@@ -1279,6 +1371,15 @@
     }
 
     async function createPDFBlob() {
+        // Bereite Textareas für html2canvas vor
+        prepareTextareasForCanvas();
+        
+        // Stelle sicher, dass alle Textareas ihre korrekte Höhe haben
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            autoResizeTextarea(textarea);
+        });
+        
         const { jsPDF } = window.jspdf;
         const questionnaire = document.getElementById('questionnaire');
         
@@ -1288,7 +1389,49 @@
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
-            logging: false
+            logging: false,
+            height: questionnaire.scrollHeight,
+            width: questionnaire.scrollWidth,
+            // Zusätzliche Optionen für bessere Text-Darstellung
+            foreignObjectRendering: true,
+            removeContainer: true,
+            imageTimeout: 0,
+            onclone: function(clonedDoc) {
+                // Ersetze Textareas durch statische, mehrzeilige Divs, damit html2canvas nichts abschneidet
+                const clonedTextareas = clonedDoc.querySelectorAll('textarea');
+                clonedTextareas.forEach(textarea => {
+                    const wrapper = clonedDoc.createElement('div');
+                    const display = clonedDoc.createElement('div');
+                    // Text aus dem Original übernehmen
+                    const text = textarea.value || '';
+                    display.textContent = text;
+                    // Visuell so nah wie möglich an die Textarea anlehnen
+                    const cs = clonedDoc.defaultView.getComputedStyle(textarea);
+                    display.style.whiteSpace = 'pre-wrap';
+                    display.style.wordWrap = 'break-word';
+                    display.style.overflowWrap = 'break-word';
+                    display.style.wordBreak = 'break-word';
+                    display.style.hyphens = 'auto';
+                    display.style.fontFamily = cs.fontFamily;
+                    display.style.fontSize = cs.fontSize;
+                    display.style.lineHeight = cs.lineHeight;
+                    display.style.color = cs.color;
+                    display.style.padding = cs.padding;
+                    display.style.border = cs.border;
+                    display.style.borderRadius = cs.borderRadius;
+                    display.style.backgroundColor = cs.backgroundColor || '#ffffff';
+                    display.style.minHeight = cs.minHeight;
+                    display.style.width = cs.width;
+                    display.style.boxSizing = 'border-box';
+                    // Wrapper nimmt exaktes Layout der Textarea ein
+                    wrapper.style.display = cs.display === 'inline' ? 'inline-block' : cs.display;
+                    wrapper.style.width = cs.width;
+                    // Original-Textarea im Clone ausblenden und ersetzen
+                    textarea.style.display = 'none';
+                    textarea.parentNode.insertBefore(wrapper, textarea);
+                    wrapper.appendChild(display);
+                });
+            }
         });
 
         const imgData = canvas.toDataURL('image/png');
