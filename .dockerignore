@@ -1,0 +1,26 @@
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+
+# OS/IDE
+.DS_Store
+.idea
+.vscode
+
+# Secrets
+.env
+credentials.json
+token.json
+
+# Built assets (copied from builder stage)
+static/kostenrechner

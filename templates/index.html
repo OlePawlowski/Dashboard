@@ -39,8 +39,8 @@
       <ul class="nav">
         <li class="active"><i class="fas fa-home"></i> Dashboard</li>
         <li><i class="fas fa-calendar-alt"></i><a style="cursor: pointer; all: unset;" href="https://calendar.google.com/calendar/u/0/r"> Kalendar</a></li>
+        <li id="nav-kostenrechner" role="button" tabindex="0"><i class="fas fa-calculator"></i> Kostenrechner</li>
         <li><i class="fas fa-life-ring" href="mailto:o.pawlowski@helpcare.de"></i> Hilfe</li>
-        <li><i class="fas fa-calculator"></i> Kostenrechner</li>
       </ul>
     </aside>
 
@@ -48,16 +48,15 @@
     <main class="main-content">
       <div class="topbar glass">
         <h1>Dashboard</h1>
-        <div style="text-align: right;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <button id="darkToggle" class="btn-small" type="button">Dark Mode</button>
           <h1 class="date-gradient">{{ aktuelles_datum }}</h1>
         </div>
       </div>
 
-      <!-- KPI Cards -->
-      <section class="kpis">
-        <div class="kpi-card glass"><h4>Anfragen</h4><p>23</p></div>
-        <div class="kpi-card glass"><h4>Einsätze</h4><p>70</p></div>
-        <div class="kpi-card glass"><h4>Betreuungskräfte</h4><p>500</p></div>
+      <!-- KPI: only live Anfragen counter -->
+      <section class="kpis" style="display: none;">
+        <div class="kpi-card glass"><h4>Anfragen</h4><p id="anfragenCounter">0</p></div>
       </section>
       
       <section class="middle-row">
@@ -89,15 +88,30 @@
 
       </section>
 
-      <!-- Gmail Bereich -->
+      <!-- Gmail Bereich (3 Spalten) -->
       <section class="working-format glass">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
           <h3>Gmail</h3>
-          <a href="/gmail/connect" class="btn-small">Gmail verbinden</a>
+          <div style="display:flex; gap:0.5rem;">
+            <a href="/gmail/connect?slot=1" class="btn-small">Verbinden 1</a>
+            <a href="/gmail/connect?slot=2" class="btn-small">Verbinden 2</a>
+            <a href="/gmail/connect?slot=3" class="btn-small">Verbinden 3</a>
+          </div>
         </div>
-        <ul id="email-list">
-          <li>Lade E-Mails...</li>
-        </ul>
+        <div class="gmail-grid">
+          <div class="gmail-pane">
+            <div class="gmail-pane-header">Inbox 1</div>
+            <ul id="email-list-1"><li>Lade E-Mails...</li></ul>
+          </div>
+          <div class="gmail-pane">
+            <div class="gmail-pane-header">Inbox 2</div>
+            <ul id="email-list-2"><li>Lade E-Mails...</li></ul>
+          </div>
+          <div class="gmail-pane">
+            <div class="gmail-pane-header">Inbox 3</div>
+            <ul id="email-list-3"><li>Lade E-Mails...</li></ul>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -152,6 +166,7 @@
  <script>
   const einsatzList = document.getElementById("einsatzList");
   let einsaetzeController = null; // verhindert Überschneidungen
+  const anfragenCounter = document.getElementById('anfragenCounter');
 
   async function loadEinsaetze() {
     // laufende Anfrage abbrechen, falls noch offen
@@ -190,6 +205,11 @@
           }
         });
       });
+
+      // Update Anfragen counter
+      if (Array.isArray(data)) {
+        anfragenCounter.textContent = data.length;
+      }
 
     } catch (err) {
       if (err.name === "AbortError") return; // durch neuen Poll ersetzt
@@ -241,19 +261,22 @@
   <script>
     const teamNotesList = document.getElementById('teamNotesList');
     const teamNoteForm = document.getElementById('teamNoteForm');
+    const currentUsername = '{{ username }}';
 
     function renderNotes(items) {
       if (!items.length) {
         teamNotesList.innerHTML = '<p>Keine Teamnotizen vorhanden.</p>';
         return;
       }
-      teamNotesList.innerHTML = items.map(n => `
+      teamNotesList.innerHTML = items.map(n => {
+        const canDelete = n.author && n.author === currentUsername;
+        return `
         <div class="team-note-item glass">
           <div class="team-note-content">${n.content}</div>
           <div class="team-note-meta">${n.author || ''} • ${new Date(n.created_at).toLocaleString('de-DE')}</div>
-          <button class="team-note-delete" data-id="${n.id}">Löschen</button>
-        </div>
-      `).join('');
+          ${canDelete ? `<button class="team-note-delete" data-id="${n.id}">Löschen</button>` : ''}
+        </div>`;
+      }).join('');
       document.querySelectorAll('.team-note-delete').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           const id = e.currentTarget.getAttribute('data-id');
@@ -303,26 +326,68 @@
     setInterval(loadNotes, 1000);
   </script>
 
-  <!-- Gmail laden -->
+  <!-- Gmail laden (3 Slots) -->
   <script>
-    fetch("/api/emails")
-      .then(res => res.json())
-      .then(data => {
-        const list = document.getElementById("email-list");
-        list.innerHTML = "";
-        data.forEach(mail => {
-          const li = document.createElement("li");
-          const link = document.createElement("a");
-          link.href = "https://mail.google.com/mail/u/0/#inbox";
-          link.target = "_blank";
-          link.innerHTML = `<strong>${mail.from}</strong><br>${mail.subject}<br><small>${mail.time}</small>`;
-          li.appendChild(link);
-          list.appendChild(li);
-        });
-      })
-      .catch(() => {
-        document.getElementById("email-list").innerHTML = "<li>❌ Fehler beim Laden</li>";
+    // Dark mode toggle with localStorage persistence
+    (function(){
+      const darkToggle = document.getElementById('darkToggle');
+      const stored = localStorage.getItem('darkMode') === '1';
+      if (stored) document.body.classList.add('dark');
+      darkToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        const enabled = document.body.classList.contains('dark');
+        localStorage.setItem('darkMode', enabled ? '1' : '0');
       });
+    })();
+
+    function loadInbox(slot) {
+      fetch(`/api/emails?slot=${slot}`)
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById(`email-list-${slot}`);
+          if (!Array.isArray(data)) {
+            list.innerHTML = `<li>${data.error || '❌ Fehler beim Laden'}</li>`;
+            return;
+          }
+          list.innerHTML = "";
+          data.forEach(mail => {
+            const li = document.createElement("li");
+            const link = document.createElement("a");
+            link.href = "https://mail.google.com/mail/u/0/#inbox";
+            link.target = "_blank";
+            link.innerHTML = `<strong>${mail.from}</strong><br>${mail.subject}<br><small>${mail.time}</small>`;
+            li.appendChild(link);
+            list.appendChild(li);
+          });
+        })
+        .catch(() => {
+          const list = document.getElementById(`email-list-${slot}`);
+          list.innerHTML = "<li>❌ Fehler beim Laden</li>";
+        });
+    }
+    [1,2,3].forEach(loadInbox);
+  </script>
+
+  <!-- Kostenrechner Modal -->
+  <div id="kostenrechner-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>Kostenrechner</h3>
+        <button id="close-kostenrechner" class="btn-small" type="button">Schließen</button>
+      </div>
+      <iframe id="kostenrechner-frame" src="/static/kostenrechner/index.html" title="Kostenrechner" style="width:100%;height:70vh;border:0;border-radius:12px;background:white;"></iframe>
+    </div>
+  </div>
+
+  <script>
+    // Modal open/close wiring
+    const openKR = document.getElementById('nav-kostenrechner');
+    const modalKR = document.getElementById('kostenrechner-modal');
+    const closeKR = document.getElementById('close-kostenrechner');
+    openKR?.addEventListener('click', ()=> modalKR.style.display = 'block');
+    openKR?.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); modalKR.style.display='block'; }});
+    closeKR?.addEventListener('click', ()=> modalKR.style.display = 'none');
+    modalKR?.addEventListener('click', (e)=>{ if (e.target === modalKR) modalKR.style.display='none'; });
   </script>
 </body>
 </html>

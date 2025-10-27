@@ -13,6 +13,50 @@ body {
   color: #2c2c2c;
 }
 
+/* Dark mode */
+.dark body, body.dark {
+  background: linear-gradient(145deg, #0f1115, #1b1e24);
+  color: #e6e6e6;
+}
+
+.dark .sidebar, body.dark .sidebar,
+.dark .kpi-card, body.dark .kpi-card,
+.dark .kpi-score, body.dark .kpi-score,
+.dark .top-performance, body.dark .top-performance,
+.dark .team, body.dark .team,
+.dark .team-notes, body.dark .team-notes,
+.dark .working-format, body.dark .working-format,
+.dark .team-card, body.dark .team-card,
+.dark .gmail-pane, body.dark .gmail-pane {
+  background: linear-gradient(180deg, rgba(24,27,33,0.78), rgba(24,27,33,0.62));
+  color: #e6e6e6;
+}
+
+.dark .sidebar .nav li.active, body.dark .sidebar .nav li.active,
+.dark .sidebar .nav li:hover, body.dark .sidebar .nav li:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark .working-format a, body.dark .working-format a,
+.dark .working-format strong, body.dark .working-format strong {
+  color: #e6e6e6;
+}
+
+.dark .message, body.dark .message {
+  background: rgba(255,255,255,0.04);
+  color: #e6e6e6;
+}
+
+.dark .team-note-meta, body.dark .team-note-meta { color: #aaa; }
+.dark .team-card-role, body.dark .team-card-role { color: #bbb; }
+.dark .team-card-email, body.dark .team-card-email { color: #ccc; }
+
+/* Dark mode: hover states, borders, svg tints */
+.dark .working-format li:hover, body.dark .working-format li:hover { background: rgba(255,255,255,0.08); }
+.dark .glass, body.dark .glass { border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.4); }
+.dark .btn-small, body.dark .btn-small { background: #f78060; color: #111; }
+.dark .bcg path, body.dark .bcg path { fill: rgba(247,128,96,0.06) !important; }
+
 /* SVG Hintergrund */
 .bcg {
   position: fixed;
@@ -111,12 +155,13 @@ body {
 
 .kpi-card {
   flex: 1;
-  background: rgba(255, 255, 255, 0.5);
-  padding: 1.5rem;
-  border-radius: 16px;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.5));
+  padding: 1.25rem 1.5rem;
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
   text-align: center;
+  border: 1px solid rgba(255,255,255,0.28);
 }
 
 .kpi-card h4 {
@@ -125,8 +170,8 @@ body {
 }
 
 .kpi-card p {
-  font-size: 1.6rem;
-  font-weight: bold;
+  font-size: 2rem;
+  font-weight: 800;
 }
 
 .message {
@@ -157,6 +202,14 @@ body {
   margin-top: 1rem;
   border-radius: 12px;
 }
+
+/* Equal middle-row panels with scrollable interior */
+.middle-row > .glass { display: flex; flex-direction: column; height: var(--mid-panel-h, 380px); }
+#einsatzList { overflow-y: auto; flex: 1; }
+#whatsapp-box { display: flex; flex-direction: column; }
+#whatsapp-messages { overflow-y: auto; flex: 1; }
+.team-notes { display: flex; flex-direction: column; margin-top: 0; }
+.team-notes-list { overflow-y: auto; flex: 1; }
 
 /* Mittelblock */
 .middle-row {
@@ -259,6 +312,39 @@ body {
   color: #2c2c2c;
 }
 
+/* Gmail 3-pane layout */
+.gmail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.gmail-pane {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  max-height: 380px;
+}
+
+.gmail-pane-header {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.gmail-pane ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.gmail-pane li { margin-bottom: 0.6rem; }
+
 /* Team */
 .team {
   background: rgba(255, 255, 255, 0.5);
@@ -348,7 +434,6 @@ body {
   border-radius: 16px;
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  margin: 2rem 0;
 }
 
 .team-notes-header {
@@ -422,6 +507,7 @@ body {
   .team-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+  .gmail-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {
@@ -465,4 +551,38 @@ body {
   background: #f78060;
   color: white;
   font-weight: 700;
+}
+
+/* Modal basic styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 9999;
+}
+
+.modal-content {
+  width: min(100%, 1100px);
+  max-height: 85vh;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.8);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Dark mode modal */
+.dark .modal-content, body.dark .modal-content {
+  background: rgba(24,27,33,0.8);
 }

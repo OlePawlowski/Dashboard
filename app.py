@@ -11,6 +11,7 @@ import requests
 import uuid
 from models import db, User, Anfrage, TeamNote, GmailCredential
 from werkzeug.middleware.proxy_fix import ProxyFix
+from base64 import urlsafe_b64encode
 
 # 🔃 .env laden (lokal)
 load_dotenv()
@@ -46,9 +47,11 @@ for i in range(1, 4):
         USERS[name] = pw
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SEND_SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 # 📬 Google OAuth Flow Builder (env or credentials.json fallback)
-def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
+def build_google_flow(redirect_uri: str, state: str = None, scopes=None) -> Flow:
+    use_scopes = scopes or SCOPES
     client_config_json = os.getenv('GOOGLE_CLIENT_CONFIG_JSON')
     client_config_path = os.getenv('GOOGLE_CLIENT_CONFIG_PATH') or 'credentials.json'
     # 1) Try JSON from env (robust to accidental extra quotes and double-encoded JSON)
@@ -65,7 +68,7 @@ def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
             try:
                 maybe = json.loads(txt)
                 if isinstance(maybe, dict):
-                    return Flow.from_client_config(maybe, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
+                    return Flow.from_client_config(maybe, scopes=use_scopes, redirect_uri=redirect_uri, state=state)
                 if isinstance(maybe, str):
                     txt = normalize_json_text(maybe)
                     continue
@@ -74,7 +77,7 @@ def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
                 break
     # 2) Try credentials file
     if os.path.exists(client_config_path):
-        return Flow.from_client_secrets_file(client_config_path, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
+        return Flow.from_client_secrets_file(client_config_path, scopes=use_scopes, redirect_uri=redirect_uri, state=state)
     # 3) Fallback to individual ID/SECRET
     client_id = os.getenv('GOOGLE_CLIENT_ID')
     client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
@@ -88,7 +91,7 @@ def build_google_flow(redirect_uri: str, state: str = None) -> Flow:
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
             }
         }
-        return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=redirect_uri, state=state)
+        return Flow.from_client_config(client_config, scopes=use_scopes, redirect_uri=redirect_uri, state=state)
     raise RuntimeError("Google OAuth ist nicht konfiguriert. Setze GOOGLE_CLIENT_CONFIG_JSON (als reines JSON ohne zusätzliche Anführungszeichen), oder lege credentials.json ab, oder setze GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.")
 
 # 📬 E-Mail Auth über Environment (Fallback)
@@ -106,6 +109,10 @@ def load_user_gmail_credentials(username: str):
         return None
     try:
         token_data = json.loads(cred.token_json)
+        # Allow send scope if token already has it
+        scopes = token_data.get('scopes') or token_data.get('_scopes') or []
+        if any('gmail.send' in s for s in scopes):
+            return Credentials.from_authorized_user_info(token_data, SCOPES + SEND_SCOPES)
         return Credentials.from_authorized_user_info(token_data, SCOPES)
     except Exception:
         return None
@@ -116,8 +123,14 @@ def gmail_connect():
     if "user" not in session:
         return redirect("/")
     try:
+        # Optional: which slot (1..3) is being connected from the UI
+        slot = request.args.get('slot')
+        if slot in {"1", "2", "3"}:
+            session['gmail_connect_slot'] = slot
         redirect_uri = url_for('gmail_callback', _external=True)
-        flow = build_google_flow(redirect_uri)
+        # Request both read and send scopes to enable emailing PDFs
+        requested_scopes = list({*SCOPES, *SEND_SCOPES})
+        flow = build_google_flow(redirect_uri, scopes=requested_scopes)
         # Validate client type and redirect URI allowlist to prevent Google "invalid request"
         try:
             if getattr(flow, 'client_type', None) != 'web':
@@ -156,8 +169,9 @@ def gmail_callback():
         return "Ungültiger OAuth-Status (state mismatch)", 400
     redirect_uri = url_for('gmail_callback', _external=True)
     try:
-        # Recreate flow with same state; set PKCE code_verifier if present
-        flow = build_google_flow(redirect_uri, state=expected_state)
+        # Recreate flow with same state and same scopes as initial request (read + send)
+        requested_scopes = list({*SCOPES, *SEND_SCOPES})
+        flow = build_google_flow(redirect_uri, state=expected_state, scopes=requested_scopes)
         code_verifier = session.get('oauth_code_verifier')
         if code_verifier:
             flow.code_verifier = code_verifier
@@ -231,11 +245,30 @@ def dashboard():
 def get_emails():
     if "user" not in session:
         return jsonify({"error": "Nicht eingeloggt"}), 401
+    # Support 3 slots by selecting the Nth most recent credential for the user
+    # slot=1 -> most recent, slot=2 -> second, slot=3 -> third
+    slot_param = request.args.get('slot', '1')
+    try:
+        slot_index = int(slot_param)
+    except Exception:
+        slot_index = 1
+    if slot_index < 1:
+        slot_index = 1
+    if slot_index > 3:
+        slot_index = 3
 
     try:
-        creds = load_user_gmail_credentials(session['user'])
-        if not creds:
-            return jsonify({"error": "Kein Gmail-Konto verbunden. Bitte zuerst verbinden."}), 400
+        cred_row = (
+            GmailCredential.query
+            .filter_by(username=session['user'])
+            .order_by(GmailCredential.id.desc())
+            .offset(slot_index - 1)
+            .first()
+        )
+        if not cred_row:
+            return jsonify({"error": "Kein Gmail-Konto für diesen Slot verbunden. Bitte verbinden."}), 400
+        token_data = json.loads(cred_row.token_json)
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
         service = build('gmail', 'v1', credentials=creds)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])
@@ -255,6 +288,110 @@ def get_emails():
         email_list.append(email_info)
 
     return jsonify(email_list)
+
+# 📧 Angebot per E-Mail versenden (PDF Base64)
+@app.route('/api/send-offer', methods=['POST'])
+def send_offer():
+    if "user" not in session:
+        return jsonify({"error": "Nicht eingeloggt"}), 401
+    data = request.get_json() or {}
+    to_email = data.get('to')
+    # Subject/Body defaults (keeps your latest wording) with last name interpolation
+    name_full = (data.get('sms_name') or '').strip()
+    last_name = (data.get('lastName') or (name_full.split()[-1] if name_full else '')).strip()
+    subject = data.get('subject') or "Ihr unverbindliches Angebot"
+    body = data.get('body') or (
+        f"Sehr geehrte Familie {last_name},\n\n"
+        "vielen Dank für das freundliche Gespräch. Wie vereinbart, übersende ich Ihnen im Anhang unser Angebot.\n\n"
+        "Sollten Sie noch Fragen haben oder weitere Details benötigen, stehe ich Ihnen gerne zur Verfügung.\n\n"
+        "Mit besten Grüßen  \n"
+        "Team HelpCare  \n\n"
+        "HelpCare GmbH  \n"
+        "info@helpcare.de  \n"
+        "+49 30 232 5357100  \n"
+        "www.helpcare.de\n"
+    )
+
+    pdf_b64 = data.get('pdf_base64')
+    filename = data.get('filename') or 'Angebot.pdf'
+    sms_number = data.get('sms_number')
+    sms_name = data.get('sms_name')
+    sms_info_email = to_email
+    if not to_email or not pdf_b64:
+        return jsonify({"error": "to und pdf_base64 erforderlich"}), 400
+
+    # Load credentials with send scope if possible
+    creds = load_user_gmail_credentials(session['user'])
+    if not creds:
+        return jsonify({"error": "Kein Gmail-Konto verbunden."}), 400
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+        # Build MIME message with PDF attachment
+        boundary = 'mixed_boundary'
+        message_parts = []
+        message_parts.append(f"Content-Type: multipart/mixed; boundary={boundary}\r\n")
+        message_parts.append(f"MIME-Version: 1.0\r\n")
+        message_parts.append(f"to: {to_email}\r\n")
+        message_parts.append(f"subject: {subject}\r\n\r\n")
+        # Text part
+        message_parts.append(f"--{boundary}\r\n")
+        message_parts.append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+        message_parts.append(body + "\r\n\r\n")
+        # Attachment part
+        message_parts.append(f"--{boundary}\r\n")
+        message_parts.append(f"Content-Type: application/pdf; name={filename}\r\n")
+        message_parts.append("Content-Transfer-Encoding: base64\r\n")
+        message_parts.append(f"Content-Disposition: attachment; filename={filename}\r\n\r\n")
+        # Strip header if present
+        if pdf_b64.startswith('data:application/pdf;base64,'):
+            pdf_b64 = pdf_b64.split(',', 1)[1]
+        message_parts.append(pdf_b64 + "\r\n")
+        message_parts.append(f"--{boundary}--")
+        raw_message = ''.join(message_parts).encode('utf-8')
+        raw = urlsafe_b64encode(raw_message).decode('utf-8')
+        service.users().messages().send(userId='me', body={'raw': raw}).execute()
+        # Optional: Send SMS via Link Mobility if number present
+        if sms_number:
+            try:
+                linkmobility_token = os.getenv('LINKMOBILITY_TOKEN') or 'bb2d6280-fbfe-4b73-9421-b2ca7a76c896'
+                link_base = os.getenv('LINKMOBILITY_BASE_URL') or 'https://api.linkmobility.eu/rest/smsmessaging/simple'
+                # E.164 normalize (Germany default)
+                num = ''.join([c for c in (sms_number or '') if c.isdigit() or c=='+'])
+                num = num.replace('+','')
+                if num.startswith('00'):
+                    num = num[2:]
+                if num.startswith('0'):
+                    num = '49' + num[1:]
+                if not num.startswith('49'):
+                    # keep as-is or extend mapping for other countries
+                    pass
+                recipient = '+' + num
+                customer_message = (
+                    f"Herzlich Willkommen {sms_name or ''},\n\n"
+                    "Wir danken Ihnen für Ihr Vertrauen,\n"
+                    "dass wir Sie bei Ihrer Suche nach\n"
+                    "einer passenden 24 Stunden\n"
+                    "Betreuungskraft unterstützen dürfen.\n\n"
+                    f"Ihr persönliches Angebot wurde per\nE-Mail an: {sms_info_email}\nzugestellt.\n\n"
+                    "Bitte prüfen Sie auch Ihren\n"
+                    "Spam-Ordner, falls Sie unsere\n"
+                    "E-Mail nicht im Posteingang finden.\n\n"
+                    "Für Fragen erreichen Sie uns jederzeit\n"
+                    "kostenlos unter 0800 000 9178.\n\n"
+                    "Beste Grüße\nIhr HelpCare Team"
+                )
+                payload = {
+                    'access_token': linkmobility_token,
+                    'recipientAddressList': recipient,
+                    'messageContent': customer_message,
+                }
+                import requests as _requests
+                _requests.post(link_base, data=payload, headers={'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, timeout=30)
+            except Exception:
+                pass
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": f"Senden fehlgeschlagen: {str(e)}"}), 500
 
 # 📲 Webhook von Chatwoot empfangen
 @app.route("/webhook/chatwoot", methods=["POST"])
@@ -379,6 +516,10 @@ def delete_team_note(note_id: int):
     note = TeamNote.query.get(note_id)
     if not note:
         return jsonify({"error": "Notiz nicht gefunden"}), 404
+    # Only the author may delete their own notes
+    current_user = session.get('user')
+    if not current_user or (note.author and note.author != current_user):
+        return jsonify({"error": "Keine Berechtigung zum Löschen dieser Notiz"}), 403
     db.session.delete(note)
     db.session.commit()
     return jsonify({"success": True})
